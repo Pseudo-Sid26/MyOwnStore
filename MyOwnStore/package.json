@@ -1,0 +1,19 @@
+{
+  "name": "myownstore",
+  "version": "1.0.0",
+  "description": "Full-stack e-commerce application with Node.js backend and React frontend",
+  "main": "index.js",
+  "scripts": {
+    "install-backend": "cd Backend && npm install",
+    "install-frontend": "cd Frontend && npm install",
+    "install-all": "npm run install-backend && npm run install-frontend",
+    "dev-backend": "cd Backend && npm run dev",
+    "dev-frontend": "cd Frontend && npm start",
+    "start-backend": "cd Backend && npm start",
+    "build-frontend": "cd Frontend && npm run build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["ecommerce", "fullstack", "nodejs", "react"],
+  "author": "",
+  "license": "ISC"
+}

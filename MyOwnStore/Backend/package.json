@@ -1,0 +1,44 @@
+{
+  "name": "myownstore-backend",
+  "version": "1.0.0",
+  "description": "Backend API for MyOwnStore e-commerce application",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test-db": "node tests/test-db.js",
+    "test-auth": "node tests/test-auth.js",
+    "test-products": "node tests/test-products.js",
+    "test-cart": "node tests/test-cart.js",
+    "test-orders": "node tests/test-orders.js",
+    "test-reviews": "node tests/test-reviews.js",
+    "test-latest": "node tests/test-latest-changes.js",
+    "test-comprehensive": "node tests/test-comprehensive.js",
+    "check-data": "node tests/check-data.js",
+    "seed": "node seeders/index.js"
+  },
+  "keywords": [
+    "ecommerce",
+    "api",
+    "node",
+    "express"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.10.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^7.5.0",
+    "multer": "^1.4.5-lts.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
