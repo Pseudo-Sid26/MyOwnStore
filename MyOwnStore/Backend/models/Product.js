@@ -9,7 +9,7 @@ const discountSchema = new mongoose.Schema({
   validTill: {
     type: Date,
     validate: {
-      validator: function(value) {
+      validator: function (value) {
         return value > new Date();
       },
       message: 'Discount expiry date must be in the future'
@@ -93,17 +93,60 @@ productSchema.index({ price: 1 });
 productSchema.index({ rating: -1 });
 productSchema.index({ createdAt: -1 });
 
-// Virtual for effective price (after discount)
-productSchema.virtual('effectivePrice').get(function() {
-  if (this.discount && this.discount.percentage && 
-      this.discount.validTill && this.discount.validTill > new Date()) {
-    return this.price - (this.price * this.discount.percentage / 100);
+// Add this virtual field to match frontend expectations
+productSchema.virtual('discountedPrice').get(function () {
+  if (this.discount && this.discount.percentage &&
+    this.discount.validTill && this.discount.validTill > new Date()) {
+    const discountAmount = this.price * this.discount.percentage / 100;
+    return Math.round((this.price - discountAmount) * 100) / 100; // Round to 2 decimal places
   }
-  return this.price;
+  return null; // No discount available
+});
+
+// Add virtual for discount percentage (for frontend use)
+productSchema.virtual('discountPercentage').get(function () {
+  if (this.discount && this.discount.percentage &&
+    this.discount.validTill && this.discount.validTill > new Date()) {
+    return this.discount.percentage;
+  }
+  return 0;
+});
+
+// Add virtual for checking if discount is active
+productSchema.virtual('hasActiveDiscount').get(function () {
+  return this.discount &&
+    this.discount.percentage > 0 &&
+    this.discount.validTill &&
+    this.discount.validTill > new Date();
+});
+
+// Add virtual for savings amount
+productSchema.virtual('savingsAmount').get(function () {
+  if (this.hasActiveDiscount) {
+    const discountAmount = this.price * this.discount.percentage / 100;
+    return Math.round(discountAmount * 100) / 100;
+  }
+  return 0;
+});
+
+// Add virtual for compatibility with frontend (alias)
+productSchema.virtual('numReviews').get(function () {
+  return this.reviewsCount;
+});
+
+// Ensure virtuals are included in JSON output
+productSchema.set('toJSON', {
+  virtuals: true,
+  transform: function (doc, ret) {
+    // Remove internal fields from JSON output
+    delete ret.__v;
+    delete ret.id; // Remove duplicate id field
+    return ret;
+  }
 });
 
 // Virtual for availability status
-productSchema.virtual('isAvailable').get(function() {
+productSchema.virtual('isAvailable').get(function () {
   return this.stock > 0;
 });
 
@@ -115,7 +158,7 @@ productSchema.virtual('reviews', {
 });
 
 // Pre-save middleware to update rating and review count
-productSchema.methods.updateRating = async function() {
+productSchema.methods.updateRating = async function () {
   const Review = mongoose.model('Review');
   const stats = await Review.aggregate([
     { $match: { productId: this._id } },

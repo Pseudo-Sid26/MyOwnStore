@@ -15,17 +15,24 @@ const HomePage = () => {
   const [isLoading, setIsLoading] = useState(true)
   const { actions } = useApp()
 
+  // Update the useEffect to handle correct data structure:
   useEffect(() => {
     const fetchData = async () => {
       try {
         setIsLoading(true)
+
         const [productsResponse, categoriesResponse] = await Promise.all([
           productsAPI.getAll({ limit: 8, featured: true }),
           categoriesAPI.getAll()
         ])
-        
-        setFeaturedProducts(productsResponse.data.products || [])
-        setCategories(categoriesResponse.data.categories || [])
+
+        console.log('Products response:', productsResponse.data)
+        console.log('Categories response:', categoriesResponse.data)
+
+        // ✅ Fix: Access the correct nested data structure
+        setFeaturedProducts(productsResponse.data.data?.products || [])
+        setCategories(categoriesResponse.data.data?.categories || [])
+
       } catch (error) {
         console.error('Error fetching homepage data:', error)
         actions.setError('Failed to load homepage data')
@@ -55,10 +62,10 @@ const HomePage = () => {
               Welcome to MyOwnStore
             </h1>
             <p className="text-xl mb-8 text-primary-100">
-              Discover amazing products at unbeatable prices. Shop from thousands of items 
+              Discover amazing products at unbeatable prices. Shop from thousands of items
               with fast shipping and exceptional customer service.
             </p>
-             <div className="mt-10 flex flex-col sm:flex-row gap-4">
+            <div className="mt-10 flex flex-col sm:flex-row gap-4">
               <Link to="/products">
                 <Button size="lg" variant="secondary" className="w-full sm:w-auto">
                   Shop Now
@@ -83,12 +90,12 @@ const HomePage = () => {
             Explore our wide range of product categories to find exactly what you're looking for.
           </p>
         </div>
-        
+
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {categories.slice(0, 8).map((category) => (
             <Link
               key={category._id}
-              to={`/category/${category.slug}`}
+              to={`/categories/${category._id}`}  // Changed from /category/${category.slug} to /categories/${category._id}
               className="group"
             >
               <Card className="text-center p-6 hover:shadow-lg transition-shadow">
@@ -103,6 +110,7 @@ const HomePage = () => {
             </Link>
           ))}
         </div>
+
       </section>
 
       {/* Featured Products */}
@@ -112,12 +120,13 @@ const HomePage = () => {
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Featured Products</h2>
             <p className="text-gray-600">Hand-picked products just for you</p>
           </div>
-          <Button variant="outline" asChild>
-            <Link to="/products">
+          {/* Fix: Remove asChild and use Link directly */}
+          <Link to="/products">
+            <Button variant="outline">
               View All
               <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
+            </Button>
+          </Link>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -132,7 +141,7 @@ const HomePage = () => {
               </div>
               <CardContent className="p-4">
                 <div className="space-y-2">
-                  <h3 className="font-semibold text-gray-900 truncate">{product.name}</h3>
+                  <h3 className="font-semibold text-gray-900 truncate">{product.title}</h3>
                   <div className="flex items-center space-x-2">
                     <div className="flex items-center">
                       <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
@@ -157,8 +166,8 @@ const HomePage = () => {
                 </div>
               </CardContent>
               <CardFooter className="p-4 pt-0">
-                <Button 
-                  className="w-full" 
+                <Button
+                  className="w-full"
                   onClick={() => actions.addToCart(product)}
                 >
                   Add to Cart

@@ -35,9 +35,20 @@ const LoginPage = () => {
     try {
       setIsLoading(true)
       const response = await authAPI.login(data)
-      
+
+      console.log('Login response:', response.data) // Debug log
+
       if (response.data.success) {
-        actions.login(response.data.data.user, response.data.data.token)
+        const { user, token } = response.data.data
+
+        console.log('Login successful:', { user, token }) // Debug log
+
+        // Store token and user data
+        localStorage.setItem('token', token) // Don't stringify token
+        localStorage.setItem('user', JSON.stringify(user))
+
+        // Use the login action
+        actions.login(user, token)
         actions.setSuccess('Login successful!')
         navigate('/')
       } else {
@@ -129,8 +140,8 @@ const LoginPage = () => {
                     Remember me
                   </label>
                 </div>
-                <Link 
-                  to="/forgot-password" 
+                <Link
+                  to="/forgot-password"
                   className="text-sm text-primary-600 hover:text-primary-500"
                 >
                   Forgot password?
@@ -164,8 +175,8 @@ const LoginPage = () => {
               <div className="text-center">
                 <p className="text-sm text-gray-600">
                   Don't have an account?{' '}
-                  <Link 
-                    to="/register" 
+                  <Link
+                    to="/register"
                     className="font-medium text-primary-600 hover:text-primary-500"
                   >
                     Sign up

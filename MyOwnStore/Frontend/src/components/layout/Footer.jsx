@@ -46,8 +46,8 @@ const Footer = () => {
               <Link to="/products" className="block text-gray-400 hover:text-white transition-colors">
                 Products
               </Link>
-              <Link to="/categories" className="block text-gray-400 hover:text-white transition-colors">
-                Categories
+              <Link to="/deals" className="block text-gray-400 hover:text-white transition-colors">
+                Deals
               </Link>
               <Link to="/about" className="block text-gray-400 hover:text-white transition-colors">
                 About Us
@@ -62,20 +62,20 @@ const Footer = () => {
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Customer Service</h3>
             <nav className="space-y-2">
-              <Link to="/help" className="block text-gray-400 hover:text-white transition-colors">
+              <Link to="/contact" className="block text-gray-400 hover:text-white transition-colors">
                 Help Center
               </Link>
-              <Link to="/shipping" className="block text-gray-400 hover:text-white transition-colors">
-                Shipping Info
-              </Link>
-              <Link to="/returns" className="block text-gray-400 hover:text-white transition-colors">
-                Returns & Exchanges
-              </Link>
-              <Link to="/track" className="block text-gray-400 hover:text-white transition-colors">
+              <Link to="/orders" className="block text-gray-400 hover:text-white transition-colors">
                 Track Order
               </Link>
-              <Link to="/faq" className="block text-gray-400 hover:text-white transition-colors">
-                FAQ
+              <Link to="/profile" className="block text-gray-400 hover:text-white transition-colors">
+                My Account
+              </Link>
+              <Link to="/guest-checkout" className="block text-gray-400 hover:text-white transition-colors">
+                Guest Checkout
+              </Link>
+              <Link to="/contact" className="block text-gray-400 hover:text-white transition-colors">
+                Support
               </Link>
             </nav>
           </div>
@@ -112,8 +112,8 @@ const Footer = () => {
               <Link to="/terms" className="text-gray-400 hover:text-white transition-colors text-sm">
                 Terms of Service
               </Link>
-              <Link to="/cookies" className="text-gray-400 hover:text-white transition-colors text-sm">
-                Cookie Policy
+              <Link to="/contact" className="text-gray-400 hover:text-white transition-colors text-sm">
+                Contact Us
               </Link>
             </nav>
           </div>

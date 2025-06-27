@@ -10,62 +10,201 @@ const api = axios.create({
   },
 })
 
-// Request interceptor to add auth token
+// Add request interceptor to include token
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token')
+    console.log('Request interceptor - Token:', token ? 'Present' : 'Missing')
+
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`
+      // Remove quotes if token is stored with quotes
+      const cleanToken = token.replace(/^"(.*)"$/, '$1')
+      config.headers.Authorization = `Bearer ${cleanToken}`
+      console.log('Added Authorization header:', config.headers.Authorization)
+    } else {
+      console.warn('No token found in localStorage')
     }
+
+    console.log('Request config:', {
+      url: config.url,
+      method: config.method,
+      headers: config.headers
+    })
+
     return config
   },
   (error) => {
+    console.error('Request interceptor error:', error)
     return Promise.reject(error)
   }
 )
 
-// Response interceptor to handle errors
+
+// Enhanced response interceptor
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    return response;
+  },
   (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token')
-      localStorage.removeItem('user')
-      window.location.href = '/login'
-    }
-    return Promise.reject(error)
-  }
-)
+    const { response } = error;
 
-// Auth API
+    if (response?.status === 401) {
+      const errorCode = response.data?.code;
+
+      // Handle different types of auth errors
+      switch (errorCode) {
+        case 'TOKEN_EXPIRED':
+          console.error('Token expired, redirecting to login');
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/login';
+          break;
+
+        case 'INVALID_TOKEN':
+        case 'USER_NOT_FOUND':
+          console.error('Invalid authentication, clearing session');
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/login';
+          break;
+
+        case 'NO_TOKEN':
+          console.error('No token provided');
+          break;
+
+        default:
+          console.error('Authentication error:', response.data?.message);
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+// Add getProfile method
 export const authAPI = {
   register: (userData) => api.post('/auth/register', userData),
   login: (credentials) => api.post('/auth/login', credentials),
   getProfile: () => api.get('/auth/profile'),
-  updateProfile: (userData) => api.put('/auth/profile', userData),
+  updateProfile: (profileData) => api.put('/auth/profile', profileData),
   changePassword: (passwordData) => api.put('/auth/change-password', passwordData),
-}
+  forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
+  resetPassword: (token, password) => api.post('/auth/reset-password', { token, password })
+};
+
+
 
 // Products API
 export const productsAPI = {
-  getAll: (params) => api.get('/products', { params }),
+  // Get all products with optional filters
+  getAll: (params = {}) => {
+    const queryParams = new URLSearchParams()
+    
+    // Add supported parameters
+    if (params.page) queryParams.append('page', params.page)
+    if (params.limit) queryParams.append('limit', params.limit)
+    if (params.sort) queryParams.append('sort', params.sort)
+    if (params.category) queryParams.append('category', params.category)
+    if (params.brand) queryParams.append('brand', params.brand)
+    if (params.minPrice) queryParams.append('minPrice', params.minPrice)
+    if (params.maxPrice) queryParams.append('maxPrice', params.maxPrice)
+    if (params.search) queryParams.append('search', params.search)
+    if (params.inStock) queryParams.append('inStock', params.inStock)
+    if (params.featured) {
+      // For featured products, we can sort by rating or use specific logic
+      queryParams.append('sort', '-rating')
+      queryParams.append('inStock', 'true')
+    }
+    
+    const queryString = queryParams.toString()
+    const url = queryString ? `/products?${queryString}` : '/products'
+    
+    return api.get(url)
+  },
+  
+  // Get single product by ID
   getById: (id) => api.get(`/products/${id}`),
-  search: (query) => api.get(`/products/search?q=${query}`),
-  getByCategory: (categoryId) => api.get(`/products/category/${categoryId}`),
-  getSuggestions: (query) => api.get(`/products/suggestions?q=${query}`),
-  getRecommendations: (productId) => api.get(`/products/${productId}/recommendations`),
+  
+  // Get products by category
+  getByCategory: (categoryId, params = {}) => {
+    const queryParams = new URLSearchParams()
+    if (params.page) queryParams.append('page', params.page)
+    if (params.limit) queryParams.append('limit', params.limit)
+    if (params.sort) queryParams.append('sort', params.sort)
+    
+    const queryString = queryParams.toString()
+    const url = queryString ? `/products/category/${categoryId}?${queryString}` : `/products/category/${categoryId}`
+    
+    return api.get(url)
+  },
+  
+  // ✅ Add dedicated search method
+  search: (params = {}) => {
+    const queryParams = new URLSearchParams()
+    
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') {
+        queryParams.append(key, value)
+      }
+    })
+    
+    return api.get(`/products/search?${queryParams.toString()}`)
+  },
+  
+  // Get search suggestions
+  getSearchSuggestions: (query) => api.get(`/products/search/suggestions?q=${encodeURIComponent(query)}`),
+  
+  // Get product recommendations
+  getRecommendations: (productId, limit = 5) => {
+    return api.get(`/products/${productId}/recommendations?limit=${limit}`)
+      .catch(error => {
+        // Return empty recommendations if endpoint fails
+        console.warn('Recommendations endpoint failed:', error.message)
+        return { 
+          data: { 
+            success: true,
+            data: { 
+              products: [],
+              similar: [],
+              alternatives: [],
+              betterDeals: []
+            } 
+          } 
+        }
+      })
+  },
+  
+  // Admin functions
   create: (productData) => api.post('/products', productData),
   update: (id, productData) => api.put(`/products/${id}`, productData),
   delete: (id) => api.delete(`/products/${id}`),
+  updateStock: (id, stock) => api.patch(`/products/${id}/stock`, { stock })
 }
 
 // Categories API
 export const categoriesAPI = {
-  getAll: () => api.get('/categories'),
+  // Get all categories
+  getAll: (params = {}) => {
+    const queryParams = new URLSearchParams()
+    if (params.page) queryParams.append('page', params.page)
+    if (params.limit) queryParams.append('limit', params.limit)
+    
+    const queryString = queryParams.toString()
+    const url = queryString ? `/categories?${queryString}` : '/categories'
+    
+    return api.get(url)
+  },
+  
+  // Get single category by ID
   getById: (id) => api.get(`/categories/${id}`),
+  
+  // Get category by slug
+  getBySlug: (slug) => api.get(`/categories/slug/${slug}`),
+  
+  // Admin functions
   create: (categoryData) => api.post('/categories', categoryData),
   update: (id, categoryData) => api.put(`/categories/${id}`, categoryData),
-  delete: (id) => api.delete(`/categories/${id}`),
+  delete: (id) => api.delete(`/categories/${id}`)
 }
 
 // Cart API
@@ -96,6 +235,12 @@ export const reviewsAPI = {
   update: (id, reviewData) => api.put(`/reviews/${id}`, reviewData),
   delete: (id) => api.delete(`/reviews/${id}`),
 }
+
+// Coupons API
+export const couponsAPI = {
+  validate: (code, total) => api.post('/coupons/validate', { code, total }),
+}
+
 
 // Guest API
 export const guestAPI = {

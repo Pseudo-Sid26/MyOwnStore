@@ -6,47 +6,62 @@ const categorySchema = new mongoose.Schema({
     required: [true, 'Category name is required'],
     trim: true,
     unique: true,
-    maxlength: [50, 'Category name cannot exceed 50 characters']
+    maxlength: [100, 'Category name cannot exceed 100 characters']
   },
   slug: {
     type: String,
-    required: [true, 'Category slug is required'],
     unique: true,
     lowercase: true,
+    trim: true
+  },
+  description: {
+    type: String,
     trim: true,
-    match: [/^[a-z0-9-]+$/, 'Slug can only contain lowercase letters, numbers, and hyphens']
+    maxlength: [500, 'Description cannot exceed 500 characters'],
+    default: function() {
+      return `Browse our ${this.name?.toLowerCase() || 'product'} collection`;
+    }
   },
   image: {
     type: String,
     trim: true,
-    match: [/^https?:\/\/.+/, 'Please enter a valid image URL']
+    default: ''
+  },
+  isActive: {
+    type: Boolean,
+    default: true
   }
 }, {
-  timestamps: { createdAt: true, updatedAt: false },
+  timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
 
-// Index for faster slug lookups
+// Indexes for better performance
+categorySchema.index({ name: 1 });
 categorySchema.index({ slug: 1 });
+categorySchema.index({ isActive: 1 });
 
-// Virtual for products in this category
-categorySchema.virtual('products', {
-  ref: 'Product',
-  localField: '_id',
-  foreignField: 'categoryId'
-});
-
-// Pre-validate middleware to generate slug from name if not provided
-categorySchema.pre('validate', function(next) {
-  if (!this.slug && this.name) {
+// Pre-save middleware to generate slug from name
+categorySchema.pre('save', function(next) {
+  if (this.isModified('name') || this.isNew) {
     this.slug = this.name
       .toLowerCase()
       .replace(/[^a-z0-9\s-]/g, '')
       .replace(/\s+/g, '-')
-      .trim();
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
   }
   next();
+});
+
+// Virtual for product count (don't populate, calculate manually)
+categorySchema.virtual('productCount', {
+  ref: 'Product',
+  localField: '_id',
+  foreignField: 'categoryId',
+  count: true,
+  match: { isActive: true }
 });
 
 module.exports = mongoose.model('Category', categorySchema);

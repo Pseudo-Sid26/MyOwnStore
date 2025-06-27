@@ -5,19 +5,24 @@ import { getStorageItem, setStorageItem, removeStorageItem } from '../lib/utils'
 const initialState = {
   user: getStorageItem('user'),
   token: getStorageItem('token'),
+  isAuthenticated: !!(getStorageItem('user') && getStorageItem('token')),
   cart: getStorageItem('cart', []),
   isLoading: false,
   error: null,
+  success: null,
   theme: getStorageItem('theme', 'light'),
 }
 
 // Action types
 export const actionTypes = {
   SET_USER: 'SET_USER',
+  UPDATE_USER: 'UPDATE_USER', // Add this for profile updates
   LOGOUT: 'LOGOUT',
   SET_LOADING: 'SET_LOADING',
   SET_ERROR: 'SET_ERROR',
+  SET_SUCCESS: 'SET_SUCCESS',
   CLEAR_ERROR: 'CLEAR_ERROR',
+  CLEAR_MESSAGES: 'CLEAR_MESSAGES',
   ADD_TO_CART: 'ADD_TO_CART',
   UPDATE_CART_ITEM: 'UPDATE_CART_ITEM',
   REMOVE_FROM_CART: 'REMOVE_FROM_CART',
@@ -30,10 +35,21 @@ export const actionTypes = {
 function appReducer(state, action) {
   switch (action.type) {
     case actionTypes.SET_USER:
+      const { user, token } = action.payload
       return {
         ...state,
-        user: action.payload.user,
-        token: action.payload.token,
+        user: user,
+        token: token || state.token,
+        isAuthenticated: !!(user && (token || state.token)),
+        error: null,
+      }
+
+    case actionTypes.UPDATE_USER:
+      // Update user data without affecting authentication
+      return {
+        ...state,
+        user: { ...state.user, ...action.payload },
+        // Keep existing token and authentication status
       }
 
     case actionTypes.LOGOUT:
@@ -41,7 +57,10 @@ function appReducer(state, action) {
         ...state,
         user: null,
         token: null,
+        isAuthenticated: false,
         cart: [],
+        error: null,
+        success: null,
       }
 
     case actionTypes.SET_LOADING:
@@ -55,6 +74,14 @@ function appReducer(state, action) {
         ...state,
         error: action.payload,
         isLoading: false,
+        success: null,
+      }
+
+    case actionTypes.SET_SUCCESS:
+      return {
+        ...state,
+        success: action.payload,
+        error: null,
       }
 
     case actionTypes.CLEAR_ERROR:
@@ -63,11 +90,18 @@ function appReducer(state, action) {
         error: null,
       }
 
+    case actionTypes.CLEAR_MESSAGES:
+      return {
+        ...state,
+        error: null,
+        success: null,
+      }
+
     case actionTypes.ADD_TO_CART:
       const existingItemIndex = state.cart.findIndex(
         item => item.productId === action.payload.productId
       )
-      
+
       if (existingItemIndex >= 0) {
         const updatedCart = [...state.cart]
         updatedCart[existingItemIndex].quantity += action.payload.quantity
@@ -134,11 +168,11 @@ export function AppProvider({ children }) {
     if (state.user && state.token) {
       setStorageItem('user', state.user)
       setStorageItem('token', state.token)
-    } else {
+    } else if (!state.isAuthenticated) {
       removeStorageItem('user')
       removeStorageItem('token')
     }
-  }, [state.user, state.token])
+  }, [state.user, state.token, state.isAuthenticated])
 
   useEffect(() => {
     setStorageItem('cart', state.cart)
@@ -156,10 +190,37 @@ export function AppProvider({ children }) {
 
   // Action creators
   const actions = {
-    setUser: (user, token) => {
+    // Login action - sets both user and token
+    login: (user, token) => {
+      console.log('AppContext login called with:', { user, token })
+
+      // Store in localStorage immediately
+      if (token) {
+        localStorage.setItem('token', token)
+      }
+      if (user) {
+        localStorage.setItem('user', JSON.stringify(user))
+      }
+
       dispatch({
         type: actionTypes.SET_USER,
         payload: { user, token },
+      })
+    },
+
+    // Set user - can be used for login or user updates
+    setUser: (user, token = null) => {
+      dispatch({
+        type: actionTypes.SET_USER,
+        payload: { user, token },
+      })
+    },
+
+    // Update user - for profile updates without affecting authentication
+    updateUser: (userData) => {
+      dispatch({
+        type: actionTypes.UPDATE_USER,
+        payload: userData,
       })
     },
 
@@ -179,10 +240,29 @@ export function AppProvider({ children }) {
         type: actionTypes.SET_ERROR,
         payload: error,
       })
+      // Auto-clear error after 5 seconds
+      setTimeout(() => {
+        dispatch({ type: actionTypes.CLEAR_ERROR })
+      }, 5000)
+    },
+
+    setSuccess: (message) => {
+      dispatch({
+        type: actionTypes.SET_SUCCESS,
+        payload: message,
+      })
+      // Auto-clear success after 3 seconds
+      setTimeout(() => {
+        dispatch({ type: actionTypes.CLEAR_MESSAGES })
+      }, 3000)
     },
 
     clearError: () => {
       dispatch({ type: actionTypes.CLEAR_ERROR })
+    },
+
+    clearMessages: () => {
+      dispatch({ type: actionTypes.CLEAR_MESSAGES })
     },
 
     addToCart: (product, quantity = 1) => {
@@ -233,6 +313,27 @@ export function AppProvider({ children }) {
     toggleTheme: () => {
       dispatch({ type: actionTypes.TOGGLE_THEME })
     },
+
+    // Helper method to check if user is authenticated
+    isUserAuthenticated: () => {
+      return state.isAuthenticated && state.user && state.token
+    },
+
+    // Helper method to get user role
+    getUserRole: () => {
+      return state.user?.role || 'guest'
+    },
+
+    // Helper method to get user permissions
+    hasPermission: (permission) => {
+      const role = state.user?.role
+      const permissions = {
+        admin: ['read', 'write', 'delete', 'manage'],
+        user: ['read', 'write'],
+        guest: ['read']
+      }
+      return permissions[role]?.includes(permission) || false
+    }
   }
 
   return (
@@ -249,6 +350,32 @@ export function useApp() {
     throw new Error('useApp must be used within an AppProvider')
   }
   return context
+}
+
+// Higher-order component for protected routes
+export function withAuth(Component, requiredRole = 'user') {
+  return function AuthenticatedComponent(props) {
+    const { state, actions } = useApp()
+
+    useEffect(() => {
+      if (!state.isAuthenticated) {
+        actions.setError('Please log in to access this page')
+        // Redirect to login - you might want to use React Router here
+      } else if (requiredRole === 'admin' && state.user?.role !== 'admin') {
+        actions.setError('Admin access required')
+      }
+    }, [state.isAuthenticated, state.user?.role, actions])
+
+    if (!state.isAuthenticated) {
+      return <div>Please log in...</div>
+    }
+
+    if (requiredRole === 'admin' && state.user?.role !== 'admin') {
+      return <div>Access denied</div>
+    }
+
+    return <Component {...props} />
+  }
 }
 
 export default AppContext

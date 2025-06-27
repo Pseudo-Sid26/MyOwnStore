@@ -73,25 +73,35 @@ export function calculateCartTotal(items) {
   }, 0)
 }
 
-export function calculateDiscountedPrice(price, discountPercentage) {
-  return price - (price * discountPercentage / 100)
-}
-
-export function getStorageItem(key, defaultValue = null) {
+export function getStorageItem(key, defaultValue = null){
   try {
     const item = localStorage.getItem(key)
-    return item ? JSON.parse(item) : defaultValue
+    if (!item) return defaultValue
+    
+    // For token, return as string without parsing
+    if (key === 'token') {
+      return item
+    }
+    
+    // For other items, try to parse JSON
+    return JSON.parse(item)
   } catch (error) {
-    console.error(`Error reading localStorage key "${key}":`, error)
+    console.error(`Error parsing localStorage item ${key}:`, error)
     return defaultValue
   }
 }
 
-export function setStorageItem(key, value) {
+export function setStorageItem (key, value){
   try {
-    localStorage.setItem(key, JSON.stringify(value))
+    if (key === 'token') {
+      // Store token as plain string
+      localStorage.setItem(key, value)
+    } else {
+      // Store other items as JSON
+      localStorage.setItem(key, JSON.stringify(value))
+    }
   } catch (error) {
-    console.error(`Error setting localStorage key "${key}":`, error)
+    console.error(`Error setting localStorage item ${key}:`, error)
   }
 }
 

@@ -1,17 +1,18 @@
 const express = require('express');
 const router = express.Router();
 
-// Import controllers
+// Import ALL controller functions
 const {
   register,
   login,
   getProfile,
   updateProfile,
-  changePassword
+  changePassword,
+  forgotPassword,
+  resetPassword
 } = require('../controllers/authController');
 
-// Import middleware
-const { protect } = require('../middleware/auth');
+// Import validation middleware
 const {
   validateRegister,
   validateLogin,
@@ -19,29 +20,18 @@ const {
   validatePasswordChange
 } = require('../middleware/validation');
 
-// @route   POST /api/auth/register
-// @desc    Register a new user
-// @access  Public
+// Import auth middleware
+const { protect } = require('../middleware/auth');
+
+// Public routes
 router.post('/register', validateRegister, register);
-
-// @route   POST /api/auth/login
-// @desc    Login user
-// @access  Public
 router.post('/login', validateLogin, login);
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
 
-// @route   GET /api/auth/profile
-// @desc    Get current user profile
-// @access  Private
+// Protected routes
 router.get('/profile', protect, getProfile);
-
-// @route   PUT /api/auth/profile
-// @desc    Update user profile
-// @access  Private
 router.put('/profile', protect, validateProfileUpdate, updateProfile);
-
-// @route   PUT /api/auth/change-password
-// @desc    Change user password
-// @access  Private
 router.put('/change-password', protect, validatePasswordChange, changePassword);
 
 module.exports = router;

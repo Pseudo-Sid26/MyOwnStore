@@ -1,21 +1,20 @@
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const { validationResult } = require('express-validator');
 const User = require('../models/User');
 
 // Generate JWT Token
 const generateToken = (userId) => {
   return jwt.sign({ userId }, process.env.JWT_SECRET, {
-    expiresIn: '30d',
+    expiresIn: process.env.JWT_EXPIRE || '30d',
   });
 };
 
-// @desc    Register a new user
+// @desc    Register user
 // @route   POST /api/auth/register
 // @access  Public
 const register = async (req, res) => {
   try {
-    // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
@@ -25,7 +24,7 @@ const register = async (req, res) => {
       });
     }
 
-    const { name, email, password, phone, address } = req.body;
+    const { name, email, password } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -37,15 +36,12 @@ const register = async (req, res) => {
     }
 
     // Create new user
-    const user = new User({
+    const user = await User.create({
       name,
       email,
-      password,
-      phone,
-      address
+      password, // Will be hashed by pre-save middleware
+      role: 'user'
     });
-
-    await user.save();
 
     // Generate token
     const token = generateToken(user._id);
@@ -58,7 +54,6 @@ const register = async (req, res) => {
           id: user._id,
           name: user.name,
           email: user.email,
-          phone: user.phone,
           role: user.role,
           createdAt: user.createdAt
         },
@@ -80,7 +75,6 @@ const register = async (req, res) => {
 // @access  Public
 const login = async (req, res) => {
   try {
-    // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
@@ -92,7 +86,7 @@ const login = async (req, res) => {
 
     const { email, password } = req.body;
 
-    // Find user by email (include password for verification)
+    // Find user by email
     const user = await User.findOne({ email }).select('+password');
     if (!user) {
       return res.status(401).json({
@@ -102,8 +96,8 @@ const login = async (req, res) => {
     }
 
     // Check password
-    const isPasswordValid = await user.comparePassword(password);
-    if (!isPasswordValid) {
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
       return res.status(401).json({
         success: false,
         message: 'Invalid email or password'
@@ -112,6 +106,8 @@ const login = async (req, res) => {
 
     // Generate token
     const token = generateToken(user._id);
+
+    console.log('Generated token for user:', user._id, 'Token:', token); // Debug log
 
     res.json({
       success: true,
@@ -123,6 +119,7 @@ const login = async (req, res) => {
           email: user.email,
           phone: user.phone,
           role: user.role,
+          address: user.address,
           createdAt: user.createdAt
         },
         token
@@ -143,7 +140,8 @@ const login = async (req, res) => {
 // @access  Private
 const getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    // User is already available from auth middleware
+    const user = await User.findById(req.user.id).select('-password');
     
     if (!user) {
       return res.status(404).json({
@@ -154,26 +152,15 @@ const getProfile = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Profile retrieved successfully',
       data: {
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          address: user.address,
-          role: user.role,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt
-        }
+        user: user
       }
     });
-
   } catch (error) {
     console.error('Get profile error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error while fetching profile'
+      message: 'Server error'
     });
   }
 };
@@ -183,7 +170,6 @@ const getProfile = async (req, res) => {
 // @access  Private
 const updateProfile = async (req, res) => {
   try {
-    // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
@@ -194,8 +180,10 @@ const updateProfile = async (req, res) => {
     }
 
     const { name, phone, address } = req.body;
-    
-    const user = await User.findById(req.user.id);
+    const userId = req.user.id; // Make sure this comes from auth middleware
+
+    // Find user by ID from token (don't search by email)
+    const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -203,26 +191,26 @@ const updateProfile = async (req, res) => {
       });
     }
 
-    // Update user fields
-    if (name) user.name = name;
-    if (phone) user.phone = phone;
-    if (address) user.address = address;
+    // Update only the provided fields
+    if (name !== undefined) user.name = name;
+    if (phone !== undefined) user.phone = phone;
+    if (address !== undefined) {
+      if (Array.isArray(address)) {
+        user.address = address;
+      } else if (typeof address === 'object') {
+        user.address = [address];
+      }
+    }
 
+    // Save updated user
     await user.save();
 
+    // Return updated user data (password will be automatically excluded by toJSON method)
     res.json({
       success: true,
       message: 'Profile updated successfully',
       data: {
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          address: user.address,
-          role: user.role,
-          updatedAt: user.updatedAt
-        }
+        user: user // This will use the toJSON method to exclude password
       }
     });
 
@@ -230,7 +218,7 @@ const updateProfile = async (req, res) => {
     console.error('Update profile error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error while updating profile'
+      message: 'Server error during profile update'
     });
   }
 };
@@ -240,7 +228,6 @@ const updateProfile = async (req, res) => {
 // @access  Private
 const changePassword = async (req, res) => {
   try {
-    // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
@@ -251,9 +238,10 @@ const changePassword = async (req, res) => {
     }
 
     const { currentPassword, newPassword } = req.body;
-    
-    // Get user with password
-    const user = await User.findById(req.user.id).select('+password');
+    const userId = req.user.id;
+
+    // Find user
+    const user = await User.findById(userId).select('+password');
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -262,15 +250,15 @@ const changePassword = async (req, res) => {
     }
 
     // Verify current password
-    const isCurrentPasswordValid = await user.comparePassword(currentPassword);
-    if (!isCurrentPasswordValid) {
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
       return res.status(400).json({
         success: false,
         message: 'Current password is incorrect'
       });
     }
 
-    // Update password
+    // Update password (will be hashed by pre-save middleware)
     user.password = newPassword;
     await user.save();
 
@@ -283,15 +271,72 @@ const changePassword = async (req, res) => {
     console.error('Change password error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error while changing password'
+      message: 'Server error during password change'
     });
   }
 };
 
+// @desc    Forgot password
+// @route   POST /api/auth/forgot-password
+// @access  Public
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // In a real app, you would send an email with reset link
+    // For now, just return success
+    res.json({
+      success: true,
+      message: 'Password reset instructions sent to your email'
+    });
+
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+};
+
+// @desc    Reset password
+// @route   POST /api/auth/reset-password
+// @access  Public
+const resetPassword = async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    // In a real app, you would verify the reset token
+    // For now, just return success
+    res.json({
+      success: true,
+      message: 'Password reset successful'
+    });
+
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+};
+
+// IMPORTANT: Make sure all functions are exported
 module.exports = {
   register,
   login,
   getProfile,
   updateProfile,
-  changePassword
+  changePassword,
+  forgotPassword,
+  resetPassword
 };

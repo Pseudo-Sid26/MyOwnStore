@@ -2,6 +2,7 @@ const { validationResult } = require('express-validator');
 const Product = require('../models/Product');
 const Category = require('../models/Category');
 
+
 // @desc    Get all products with filtering, sorting, and pagination
 // @route   GET /api/products
 // @access  Public
@@ -49,6 +50,7 @@ const getAllProducts = async (req, res) => {
       filter.$or = [
         { title: { $regex: search, $options: 'i' } },
         { description: { $regex: search, $options: 'i' } },
+        { brand: { $regex: search, $options: 'i' } },
         { tags: { $in: [new RegExp(search, 'i')] } }
       ];
     }
@@ -66,11 +68,12 @@ const getAllProducts = async (req, res) => {
     // Get total count for pagination
     const total = await Product.countDocuments(filter);
 
+    // ✅ Fix: Consistent response structure
     res.json({
       success: true,
       message: 'Products retrieved successfully',
       data: {
-        products,
+        products, // ✅ Nested under data
         pagination: {
           currentPage: Number(page),
           totalPages: Math.ceil(total / limit),
@@ -96,14 +99,7 @@ const getAllProducts = async (req, res) => {
 const getProductById = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id)
-      .populate('categoryId', 'name slug')
-      .populate({
-        path: 'reviews',
-        populate: {
-          path: 'userId',
-          select: 'name'
-        }
-      });
+      .populate('categoryId', 'name slug');
 
     if (!product) {
       return res.status(404).json({
@@ -112,197 +108,28 @@ const getProductById = async (req, res) => {
       });
     }
 
+    // ✅ Fix: Consistent response structure
     res.json({
       success: true,
       message: 'Product retrieved successfully',
-      data: { product }
+      data: { 
+        product // ✅ Nested under data
+      }
     });
 
   } catch (error) {
     console.error('Get product error:', error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid product ID format'
+      });
+    }
+    
     res.status(500).json({
       success: false,
       message: 'Server error while fetching product'
-    });
-  }
-};
-
-// @desc    Create new product
-// @route   POST /api/products
-// @access  Private (Admin)
-const createProduct = async (req, res) => {
-  try {
-    // Check for validation errors
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        errors: errors.array()
-      });
-    }
-
-    const {
-      title,
-      description,
-      images,
-      brand,
-      categoryId,
-      price,
-      discount,
-      sizes,
-      stock,
-      tags
-    } = req.body;
-
-    // Verify category exists
-    const category = await Category.findById(categoryId);
-    if (!category) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid category ID'
-      });
-    }
-
-    // Create product
-    const product = new Product({
-      title,
-      description,
-      images,
-      brand,
-      categoryId,
-      price,
-      discount,
-      sizes,
-      stock,
-      tags
-    });
-
-    await product.save();
-
-    // Populate category for response
-    await product.populate('categoryId', 'name slug');
-
-    res.status(201).json({
-      success: true,
-      message: 'Product created successfully',
-      data: { product }
-    });
-
-  } catch (error) {
-    console.error('Create product error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while creating product'
-    });
-  }
-};
-
-// @desc    Update product
-// @route   PUT /api/products/:id
-// @access  Private (Admin)
-const updateProduct = async (req, res) => {
-  try {
-    // Check for validation errors
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        errors: errors.array()
-      });
-    }
-
-    const product = await Product.findById(req.params.id);
-    if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: 'Product not found'
-      });
-    }
-
-    const {
-      title,
-      description,
-      images,
-      brand,
-      categoryId,
-      price,
-      discount,
-      sizes,
-      stock,
-      tags
-    } = req.body;
-
-    // Verify category exists if being updated
-    if (categoryId && categoryId !== product.categoryId.toString()) {
-      const category = await Category.findById(categoryId);
-      if (!category) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid category ID'
-        });
-      }
-    }
-
-    // Update fields
-    if (title !== undefined) product.title = title;
-    if (description !== undefined) product.description = description;
-    if (images !== undefined) product.images = images;
-    if (brand !== undefined) product.brand = brand;
-    if (categoryId !== undefined) product.categoryId = categoryId;
-    if (price !== undefined) product.price = price;
-    if (discount !== undefined) product.discount = discount;
-    if (sizes !== undefined) product.sizes = sizes;
-    if (stock !== undefined) product.stock = stock;
-    if (tags !== undefined) product.tags = tags;
-
-    await product.save();
-
-    // Populate category for response
-    await product.populate('categoryId', 'name slug');
-
-    res.json({
-      success: true,
-      message: 'Product updated successfully',
-      data: { product }
-    });
-
-  } catch (error) {
-    console.error('Update product error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while updating product'
-    });
-  }
-};
-
-// @desc    Delete product
-// @route   DELETE /api/products/:id
-// @access  Private (Admin)
-const deleteProduct = async (req, res) => {
-  try {
-    const product = await Product.findById(req.params.id);
-    
-    if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: 'Product not found'
-      });
-    }
-
-    await Product.findByIdAndDelete(req.params.id);
-
-    res.json({
-      success: true,
-      message: 'Product deleted successfully'
-    });
-
-  } catch (error) {
-    console.error('Delete product error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while deleting product'
     });
   }
 };
@@ -334,12 +161,13 @@ const getProductsByCategory = async (req, res) => {
 
     const total = await Product.countDocuments({ categoryId });
 
+    // ✅ Fix: Consistent response structure
     res.json({
       success: true,
       message: 'Products retrieved successfully',
       data: {
         category,
-        products,
+        products, // ✅ Nested under data
         pagination: {
           currentPage: Number(page),
           totalPages: Math.ceil(total / limit),
@@ -359,47 +187,83 @@ const getProductsByCategory = async (req, res) => {
   }
 };
 
-// @desc    Update product stock
-// @route   PATCH /api/products/:id/stock
-// @access  Private (Admin)
-const updateProductStock = async (req, res) => {
+// @desc    Search products
+// @route   GET /api/products/search
+// @access  Public
+const searchProducts = async (req, res) => {
   try {
-    const { stock } = req.body;
+    const {
+      q: query,
+      page = 1,
+      limit = 20,
+      category,
+      minPrice,
+      maxPrice,
+      brand,
+      rating,
+      inStock
+    } = req.query;
 
-    if (stock === undefined || stock < 0) {
+    if (!query || query.trim().length < 2) {
       return res.status(400).json({
         success: false,
-        message: 'Valid stock quantity is required'
+        message: 'Search query must be at least 2 characters long'
       });
     }
 
-    const product = await Product.findById(req.params.id);
-    if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: 'Product not found'
-      });
+    // Build search filter
+    const filter = {
+      $or: [
+        { title: { $regex: query, $options: 'i' } },
+        { description: { $regex: query, $options: 'i' } },
+        { brand: { $regex: query, $options: 'i' } },
+        { tags: { $in: [new RegExp(query, 'i')] } }
+      ]
+    };
+
+    // Apply additional filters
+    if (category) filter.categoryId = category;
+    if (brand) filter.brand = { $regex: brand, $options: 'i' };
+    if (minPrice || maxPrice) {
+      filter.price = {};
+      if (minPrice) filter.price.$gte = Number(minPrice);
+      if (maxPrice) filter.price.$lte = Number(maxPrice);
     }
+    if (rating) filter.rating = { $gte: Number(rating) };
+    if (inStock === 'true') filter.stock = { $gt: 0 };
 
-    product.stock = stock;
-    await product.save();
+    const skip = (page - 1) * limit;
 
+    const products = await Product.find(filter)
+      .populate('categoryId', 'name slug')
+      .sort({ rating: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(Number(limit));
+
+    const total = await Product.countDocuments(filter);
+
+    // ✅ Fix: Consistent response structure
     res.json({
       success: true,
-      message: 'Product stock updated successfully',
+      message: 'Search completed successfully',
       data: {
-        productId: product._id,
-        title: product.title,
-        stock: product.stock,
-        isAvailable: product.isAvailable
+        products, // ✅ Nested under data
+        pagination: {
+          currentPage: Number(page),
+          totalPages: Math.ceil(total / limit),
+          totalProducts: total,
+          hasNextPage: page * limit < total,
+          hasPrevPage: page > 1
+        },
+        searchQuery: query
       }
     });
 
   } catch (error) {
-    console.error('Update stock error:', error);
+    console.error('Search products error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error while updating stock'
+      message: 'Server error while searching products'
     });
   }
 };
@@ -429,7 +293,6 @@ const getSearchSuggestions = async (req, res) => {
     const brandSuggestions = await Product.distinct('brand', {
       brand: { $regex: q, $options: 'i' }
     });
-    const limitedBrandSuggestions = brandSuggestions.slice(0, 3);
 
     // Get category suggestions
     const categorySuggestions = await Category.find({
@@ -442,16 +305,32 @@ const getSearchSuggestions = async (req, res) => {
     const tagSuggestions = await Product.distinct('tags', {
       tags: { $in: [new RegExp(q, 'i')] }
     });
-    const limitedTagSuggestions = tagSuggestions.slice(0, 5);
 
+    // ✅ Fix: Consistent response structure
     res.json({
       success: true,
+      message: 'Search suggestions retrieved successfully',
       data: {
         suggestions: {
-          products: titleSuggestions.map(p => ({ type: 'product', value: p.title, id: p._id })),
-          brands: limitedBrandSuggestions.map(b => ({ type: 'brand', value: b })),
-          categories: categorySuggestions.map(c => ({ type: 'category', value: c.name, slug: c.slug, id: c._id })),
-          tags: limitedTagSuggestions.map(t => ({ type: 'tag', value: t }))
+          products: titleSuggestions.map(p => ({ 
+            type: 'product', 
+            value: p.title, 
+            id: p._id 
+          })),
+          brands: brandSuggestions.slice(0, 3).map(b => ({ 
+            type: 'brand', 
+            value: b 
+          })),
+          categories: categorySuggestions.map(c => ({ 
+            type: 'category', 
+            value: c.name, 
+            slug: c.slug, 
+            id: c._id 
+          })),
+          tags: tagSuggestions.slice(0, 5).map(t => ({ 
+            type: 'tag', 
+            value: t 
+          }))
         }
       }
     });
@@ -481,14 +360,14 @@ const getProductRecommendations = async (req, res) => {
       });
     }
 
-    // Get similar products from same category
+    // Get similar products from same category (excluding current product)
     const similarProducts = await Product.find({
       _id: { $ne: id },
       categoryId: product.categoryId._id,
       stock: { $gt: 0 }
     })
     .populate('categoryId', 'name slug')
-    .sort({ rating: -1 })
+    .sort({ rating: -1, createdAt: -1 })
     .limit(limit);
 
     // Get alternative products (different brands, similar price range)
@@ -503,8 +382,8 @@ const getProductRecommendations = async (req, res) => {
       stock: { $gt: 0 }
     })
     .populate('categoryId', 'name slug')
-    .sort({ rating: -1 })
-    .limit(3);
+    .sort({ rating: -1, price: 1 })
+    .limit(Math.min(limit, 3));
 
     // Get better deals (same category, lower price, good rating)
     const betterDeals = await Product.find({
@@ -516,12 +395,35 @@ const getProductRecommendations = async (req, res) => {
     })
     .populate('categoryId', 'name slug')
     .sort({ rating: -1, price: 1 })
-    .limit(3);
+    .limit(Math.min(limit, 3));
+
+    // If not enough similar products, get from other categories
+    let fallbackProducts = [];
+    if (similarProducts.length < limit) {
+      fallbackProducts = await Product.find({
+        _id: { $ne: id },
+        categoryId: { $ne: product.categoryId._id },
+        brand: product.brand, // Same brand, different category
+        stock: { $gt: 0 }
+      })
+      .populate('categoryId', 'name slug')
+      .sort({ rating: -1 })
+      .limit(limit - similarProducts.length);
+    }
+
+    // ✅ Fix: Return all recommendations as a single products array for frontend compatibility
+    const allRecommendations = [
+      ...similarProducts,
+      ...fallbackProducts,
+      ...alternatives,
+      ...betterDeals
+    ].slice(0, limit); // Limit total recommendations
 
     res.json({
       success: true,
       message: 'Product recommendations retrieved successfully',
       data: {
+        products: allRecommendations, // ✅ Frontend expects this structure
         similar: similarProducts,
         alternatives: alternatives,
         betterDeals: betterDeals,
@@ -529,8 +431,10 @@ const getProductRecommendations = async (req, res) => {
           id: product._id,
           title: product.title,
           price: product.price,
-          category: product.categoryId.name
-        }
+          category: product.categoryId.name,
+          brand: product.brand
+        },
+        totalRecommendations: allRecommendations.length
       }
     });
 
@@ -551,6 +455,7 @@ module.exports = {
   deleteProduct,
   getProductsByCategory,
   updateProductStock,
+  searchProducts, // ✅ Add search endpoint
   getSearchSuggestions,
   getProductRecommendations
 };

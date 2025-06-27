@@ -15,20 +15,21 @@ const ProductsPage = () => {
   const [categories, setCategories] = useState([])
   const [filteredProducts, setFilteredProducts] = useState([])
   const [isLoading, setIsLoading] = useState(true)
-  const [viewMode, setViewMode] = useState('grid') // grid or list
+  const [viewMode, setViewMode] = useState('grid')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('')
-  const [sortBy, setSortBy] = useState('name')
+  const [sortBy, setSortBy] = useState('title')
   const [priceRange, setPriceRange] = useState({ min: '', max: '' })
   const [searchParams, setSearchParams] = useSearchParams()
+  const [pagination, setPagination] = useState(null)
   const { actions } = useApp()
 
   // Get initial search query from URL
   useEffect(() => {
     const query = searchParams.get('q')
-    if (query) {
-      setSearchQuery(query)
-    }
+    const category = searchParams.get('category')
+    if (query) setSearchQuery(query)
+    if (category) setSelectedCategory(category)
   }, [searchParams])
 
   // Fetch products and categories
@@ -36,44 +37,57 @@ const ProductsPage = () => {
     const fetchData = async () => {
       try {
         setIsLoading(true)
+        
+        // Build API parameters
+        const productParams = {
+          limit: 50, // Get more products for client-side filtering
+          sort: sortBy
+        }
+        
+        // Add search if exists
+        if (searchQuery) {
+          productParams.search = searchQuery
+        }
+        
+        // Add category filter if exists
+        if (selectedCategory) {
+          productParams.category = selectedCategory
+        }
+
         const [productsResponse, categoriesResponse] = await Promise.all([
-          productsAPI.getAll(),
+          productsAPI.getAll(productParams),
           categoriesAPI.getAll()
         ])
         
-        setProducts(productsResponse.data.products || [])
-        setCategories(categoriesResponse.data.categories || [])
+        console.log('Products Response:', productsResponse.data) // Debug log
+        console.log('Categories Response:', categoriesResponse.data) // Debug log
+        
+        // ✅ Fix: Access correct data structure
+        const productsData = productsResponse.data?.data?.products || []
+        const categoriesData = categoriesResponse.data?.data?.categories || []
+        
+        setProducts(productsData)
+        setCategories(categoriesData)
+        setPagination(productsResponse.data?.data?.pagination || null)
+        
       } catch (error) {
         console.error('Error fetching data:', error)
         actions.setError('Failed to load products')
+        setProducts([])
+        setCategories([])
       } finally {
         setIsLoading(false)
       }
     }
 
     fetchData()
-  }, [actions])
+  }, [actions, searchQuery, selectedCategory, sortBy])
 
-  // Filter and sort products
+  // Filter and sort products (client-side for additional filtering)
   useEffect(() => {
     let filtered = [...products]
 
-    // Search filter
-    if (searchQuery) {
-      filtered = filtered.filter(product =>
-        product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.description.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    }
-
-    // Category filter
-    if (selectedCategory) {
-      filtered = filtered.filter(product => 
-        product.category._id === selectedCategory
-      )
-    }
-
-    // Price range filter
+    // Price range filter (client-side)
     if (priceRange.min) {
       filtered = filtered.filter(product => product.price >= parseFloat(priceRange.min))
     }
@@ -81,36 +95,44 @@ const ProductsPage = () => {
       filtered = filtered.filter(product => product.price <= parseFloat(priceRange.max))
     }
 
-    // Sort products
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case 'price-low':
-          return a.price - b.price
-        case 'price-high':
-          return b.price - a.price
-        case 'rating':
-          return (b.rating || 0) - (a.rating || 0)
-        case 'newest':
-          return new Date(b.createdAt) - new Date(a.createdAt)
-        default:
-          return a.name.localeCompare(b.name)
-      }
-    })
-
     setFilteredProducts(filtered)
-  }, [products, searchQuery, selectedCategory, sortBy, priceRange])
+  }, [products, priceRange])
 
   const handleSearch = (e) => {
     e.preventDefault()
-    setSearchParams(searchQuery ? { q: searchQuery } : {})
+    const params = {}
+    if (searchQuery) params.q = searchQuery
+    if (selectedCategory) params.category = selectedCategory
+    setSearchParams(params)
+  }
+
+  const handleCategoryChange = (categoryId) => {
+    setSelectedCategory(categoryId)
+    const params = {}
+    if (searchQuery) params.q = searchQuery
+    if (categoryId) params.category = categoryId
+    setSearchParams(params)
   }
 
   const clearFilters = () => {
     setSearchQuery('')
     setSelectedCategory('')
     setPriceRange({ min: '', max: '' })
-    setSortBy('name')
+    setSortBy('title')
     setSearchParams({})
+  }
+
+  const handleAddToCart = (product) => {
+    if (product.stock > 0) {
+      actions.addToCart({
+        id: product._id,
+        title: product.title,
+        price: product.discountedPrice || product.price,
+        image: product.images?.[0],
+        quantity: 1
+      })
+      actions.setSuccess(`${product.title} added to cart!`)
+    }
   }
 
   if (isLoading) {
@@ -118,6 +140,7 @@ const ProductsPage = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-center min-h-[50vh]">
           <LoadingSpinner size="xl" />
+          <span className="ml-3 text-gray-600">Loading products...</span>
         </div>
       </div>
     )
@@ -165,7 +188,7 @@ const ProductsPage = () => {
                       name="category"
                       value=""
                       checked={selectedCategory === ''}
-                      onChange={(e) => setSelectedCategory(e.target.value)}
+                      onChange={(e) => handleCategoryChange(e.target.value)}
                       className="mr-2"
                     />
                     All Categories
@@ -177,10 +200,12 @@ const ProductsPage = () => {
                         name="category"
                         value={category._id}
                         checked={selectedCategory === category._id}
-                        onChange={(e) => setSelectedCategory(e.target.value)}
+                        onChange={(e) => handleCategoryChange(e.target.value)}
                         className="mr-2"
                       />
-                      {category.name}
+                      <span className="text-sm">
+                        {category.name} ({category.productCount || 0})
+                      </span>
                     </label>
                   ))}
                 </div>
@@ -216,6 +241,11 @@ const ProductsPage = () => {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
             <div className="text-sm text-gray-600">
               {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} found
+              {pagination && (
+                <span className="ml-2 text-gray-400">
+                  (Page {pagination.currentPage} of {pagination.totalPages})
+                </span>
+              )}
             </div>
             
             <div className="flex items-center gap-4">
@@ -225,11 +255,11 @@ const ProductsPage = () => {
                 onChange={(e) => setSortBy(e.target.value)}
                 className="border border-gray-300 rounded-md px-3 py-2 text-sm"
               >
-                <option value="name">Sort by Name</option>
-                <option value="price-low">Price: Low to High</option>
-                <option value="price-high">Price: High to Low</option>
-                <option value="rating">Highest Rated</option>
-                <option value="newest">Newest First</option>
+                <option value="title">Sort by Name</option>
+                <option value="price">Price: Low to High</option>
+                <option value="-price">Price: High to Low</option>
+                <option value="-rating">Highest Rated</option>
+                <option value="-createdAt">Newest First</option>
               </select>
 
               {/* View Mode Toggle */}
@@ -257,8 +287,15 @@ const ProductsPage = () => {
           {/* Products Grid/List */}
           {filteredProducts.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-500 text-lg mb-4">No products found</p>
-              <Button onClick={clearFilters}>Clear Filters</Button>
+              <p className="text-gray-500 text-lg mb-4">
+                {searchQuery || selectedCategory 
+                  ? 'No products found matching your criteria' 
+                  : 'No products available'
+                }
+              </p>
+              {(searchQuery || selectedCategory) && (
+                <Button onClick={clearFilters}>Clear Filters</Button>
+              )}
             </div>
           ) : (
             <div className={
@@ -271,7 +308,7 @@ const ProductsPage = () => {
                   key={product._id} 
                   product={product} 
                   viewMode={viewMode}
-                  onAddToCart={() => actions.addToCart(product)}
+                  onAddToCart={() => handleAddToCart(product)}
                 />
               ))}
             </div>
@@ -282,23 +319,30 @@ const ProductsPage = () => {
   )
 }
 
-// Product Card Component
+// ✅ Fixed Product Card Component
 const ProductCard = ({ product, viewMode, onAddToCart }) => {
+  // Calculate display price
+  const displayPrice = product.discountedPrice || product.price
+  const hasDiscount = product.discountedPrice && product.discountedPrice < product.price
+
   if (viewMode === 'list') {
     return (
       <Card className="flex flex-row overflow-hidden hover:shadow-lg transition-shadow">
         <div className="w-48 h-32 flex-shrink-0">
           <img
             src={product.images?.[0] || '/placeholder-product.jpg'}
-            alt={product.name}
+            alt={product.title}
             className="w-full h-full object-cover"
+            onError={(e) => {
+              e.target.src = '/placeholder-product.jpg'
+            }}
           />
         </div>
         <div className="flex-1 p-4 flex justify-between">
           <div className="flex-1">
             <Link to={`/products/${product._id}`} className="group">
               <h3 className="font-semibold text-gray-900 group-hover:text-primary-600 mb-2">
-                {product.name}
+                {product.title}
               </h3>
             </Link>
             <p className="text-gray-600 text-sm mb-2 line-clamp-2">
@@ -312,15 +356,22 @@ const ProductCard = ({ product, viewMode, onAddToCart }) => {
                 </span>
               </div>
               <span className="text-sm text-gray-400">
-                ({product.reviewCount || 0} reviews)
+                ({product.numReviews || 0} reviews)
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-xl font-bold text-gray-900">
-                {formatPrice(product.price)}
-              </span>
-              {product.stock > 0 ? (
-                <Badge variant="secondary">In Stock</Badge>
+              <div className="flex items-center space-x-2">
+                <span className="text-xl font-bold text-gray-900">
+                  {formatPrice(displayPrice)}
+                </span>
+                {hasDiscount && (
+                  <span className="text-sm text-gray-500 line-through">
+                    {formatPrice(product.price)}
+                  </span>
+                )}
+              </div>
+              {product.isAvailable ? (
+                <Badge variant="secondary">In Stock ({product.stock})</Badge>
               ) : (
                 <Badge variant="destructive">Out of Stock</Badge>
               )}
@@ -329,7 +380,7 @@ const ProductCard = ({ product, viewMode, onAddToCart }) => {
           <div className="ml-4 flex flex-col justify-center">
             <Button 
               onClick={onAddToCart}
-              disabled={product.stock === 0}
+              disabled={!product.isAvailable || product.stock === 0}
               size="sm"
             >
               <ShoppingCart className="h-4 w-4 mr-2" />
@@ -343,22 +394,36 @@ const ProductCard = ({ product, viewMode, onAddToCart }) => {
 
   return (
     <Card className="group hover:shadow-lg transition-shadow">
-      <div className="aspect-square overflow-hidden rounded-t-lg">
+      <div className="aspect-square overflow-hidden rounded-t-lg relative">
         <Link to={`/products/${product._id}`}>
           <img
             src={product.images?.[0] || '/placeholder-product.jpg'}
-            alt={product.name}
+            alt={product.title}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            onError={(e) => {
+              e.target.src = '/placeholder-product.jpg'
+            }}
           />
         </Link>
+        {hasDiscount && (
+          <Badge className="absolute top-2 left-2 bg-red-500">
+            -{product.discount?.percentage}%
+          </Badge>
+        )}
       </div>
       <CardContent className="p-4">
         <div className="space-y-2">
           <Link to={`/products/${product._id}`} className="group">
             <h3 className="font-semibold text-gray-900 group-hover:text-primary-600 truncate">
-              {product.name}
+              {product.title}
             </h3>
           </Link>
+          
+          {/* Brand */}
+          {product.brand && (
+            <p className="text-sm text-gray-500">{product.brand}</p>
+          )}
+          
           <div className="flex items-center space-x-2">
             <div className="flex items-center">
               <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
@@ -367,17 +432,29 @@ const ProductCard = ({ product, viewMode, onAddToCart }) => {
               </span>
             </div>
             <span className="text-sm text-gray-400">
-              ({product.reviewCount || 0})
+              ({product.numReviews || 0})
             </span>
           </div>
+          
           <div className="flex items-center justify-between">
-            <span className="text-lg font-bold text-gray-900">
-              {formatPrice(product.price)}
-            </span>
-            {product.stock > 0 ? (
-              <Badge variant="secondary" className="text-xs">In Stock</Badge>
+            <div className="flex items-center space-x-2">
+              <span className="text-lg font-bold text-gray-900">
+                {formatPrice(displayPrice)}
+              </span>
+              {hasDiscount && (
+                <span className="text-sm text-gray-500 line-through">
+                  {formatPrice(product.price)}
+                </span>
+              )}
+            </div>
+            {product.isAvailable ? (
+              <Badge variant="secondary" className="text-xs">
+                In Stock
+              </Badge>
             ) : (
-              <Badge variant="destructive" className="text-xs">Out of Stock</Badge>
+              <Badge variant="destructive" className="text-xs">
+                Out of Stock
+              </Badge>
             )}
           </div>
         </div>
@@ -386,7 +463,7 @@ const ProductCard = ({ product, viewMode, onAddToCart }) => {
         <Button 
           className="w-full" 
           onClick={onAddToCart}
-          disabled={product.stock === 0}
+          disabled={!product.isAvailable || product.stock === 0}
         >
           <ShoppingCart className="h-4 w-4 mr-2" />
           Add to Cart
