@@ -2,7 +2,6 @@ const { validationResult } = require('express-validator');
 const Product = require('../models/Product');
 const Category = require('../models/Category');
 
-
 // @desc    Get all products with filtering, sorting, and pagination
 // @route   GET /api/products
 // @access  Public
@@ -68,12 +67,11 @@ const getAllProducts = async (req, res) => {
     // Get total count for pagination
     const total = await Product.countDocuments(filter);
 
-    // ✅ Fix: Consistent response structure
     res.json({
       success: true,
       message: 'Products retrieved successfully',
       data: {
-        products, // ✅ Nested under data
+        products,
         pagination: {
           currentPage: Number(page),
           totalPages: Math.ceil(total / limit),
@@ -108,12 +106,11 @@ const getProductById = async (req, res) => {
       });
     }
 
-    // ✅ Fix: Consistent response structure
     res.json({
       success: true,
       message: 'Product retrieved successfully',
       data: { 
-        product // ✅ Nested under data
+        product
       }
     });
 
@@ -130,6 +127,237 @@ const getProductById = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error while fetching product'
+    });
+  }
+};
+
+// @desc    Create new product
+// @route   POST /api/products
+// @access  Private/Admin
+const createProduct = async (req, res) => {
+  try {
+    // Check for validation errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const {
+      title,
+      description,
+      price,
+      discountedPrice,
+      brand,
+      categoryId,
+      stock,
+      images,
+      sizes,
+      tags,
+      discount
+    } = req.body;
+
+    // Verify category exists
+    const category = await Category.findById(categoryId);
+    if (!category) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid category ID'
+      });
+    }
+
+    // Create product
+    const product = new Product({
+      title,
+      description,
+      price,
+      discountedPrice,
+      brand,
+      categoryId,
+      stock,
+      images: images || [],
+      sizes: sizes || [],
+      tags: tags || [],
+      discount,
+      isAvailable: stock > 0
+    });
+
+    await product.save();
+
+    // Populate category before sending response
+    await product.populate('categoryId', 'name slug');
+
+    res.status(201).json({
+      success: true,
+      message: 'Product created successfully',
+      data: { product }
+    });
+
+  } catch (error) {
+    console.error('Create product error:', error);
+    
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: 'Product with this title already exists'
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Server error while creating product'
+    });
+  }
+};
+
+// @desc    Update product
+// @route   PUT /api/products/:id
+// @access  Private/Admin
+const updateProduct = async (req, res) => {
+  try {
+    // Check for validation errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const {
+      title,
+      description,
+      price,
+      discountedPrice,
+      brand,
+      categoryId,
+      stock,
+      images,
+      sizes,
+      tags,
+      discount,
+      isAvailable
+    } = req.body;
+
+    // Check if product exists
+    let product = await Product.findById(req.params.id);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    // Verify category exists if categoryId is being updated
+    if (categoryId) {
+      const category = await Category.findById(categoryId);
+      if (!category) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid category ID'
+        });
+      }
+    }
+
+    // Update fields
+    const updateData = {};
+    if (title !== undefined) updateData.title = title;
+    if (description !== undefined) updateData.description = description;
+    if (price !== undefined) updateData.price = price;
+    if (discountedPrice !== undefined) updateData.discountedPrice = discountedPrice;
+    if (brand !== undefined) updateData.brand = brand;
+    if (categoryId !== undefined) updateData.categoryId = categoryId;
+    if (stock !== undefined) {
+      updateData.stock = stock;
+      updateData.isAvailable = stock > 0;
+    }
+    if (images !== undefined) updateData.images = images;
+    if (sizes !== undefined) updateData.sizes = sizes;
+    if (tags !== undefined) updateData.tags = tags;
+    if (discount !== undefined) updateData.discount = discount;
+    if (isAvailable !== undefined) updateData.isAvailable = isAvailable;
+
+    // Update product
+    product = await Product.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true }
+    ).populate('categoryId', 'name slug');
+
+    res.json({
+      success: true,
+      message: 'Product updated successfully',
+      data: { product }
+    });
+
+  } catch (error) {
+    console.error('Update product error:', error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid product ID format'
+      });
+    }
+    
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: 'Product with this title already exists'
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Server error while updating product'
+    });
+  }
+};
+
+// @desc    Delete product
+// @route   DELETE /api/products/:id
+// @access  Private/Admin
+const deleteProduct = async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    await Product.findByIdAndDelete(req.params.id);
+
+    res.json({
+      success: true,
+      message: 'Product deleted successfully',
+      data: { 
+        deletedProduct: {
+          id: product._id,
+          title: product.title
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Delete product error:', error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid product ID format'
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Server error while deleting product'
     });
   }
 };
@@ -161,13 +389,12 @@ const getProductsByCategory = async (req, res) => {
 
     const total = await Product.countDocuments({ categoryId });
 
-    // ✅ Fix: Consistent response structure
     res.json({
       success: true,
       message: 'Products retrieved successfully',
       data: {
         category,
-        products, // ✅ Nested under data
+        products,
         pagination: {
           currentPage: Number(page),
           totalPages: Math.ceil(total / limit),
@@ -183,6 +410,67 @@ const getProductsByCategory = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error while fetching products'
+    });
+  }
+};
+
+// @desc    Update product stock
+// @route   PATCH /api/products/:id/stock
+// @access  Private/Admin
+const updateProductStock = async (req, res) => {
+  try {
+    const { stock } = req.body;
+
+    if (stock === undefined || stock < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid stock quantity is required'
+      });
+    }
+
+    const product = await Product.findById(req.params.id);
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    // Update stock and availability
+    product.stock = stock;
+    product.isAvailable = stock > 0;
+    await product.save();
+
+    // Populate category for response
+    await product.populate('categoryId', 'name slug');
+
+    res.json({
+      success: true,
+      message: 'Product stock updated successfully',
+      data: { 
+        product: {
+          id: product._id,
+          title: product.title,
+          stock: product.stock,
+          isAvailable: product.isAvailable
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Update stock error:', error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid product ID format'
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Server error while updating stock'
     });
   }
 };
@@ -242,12 +530,11 @@ const searchProducts = async (req, res) => {
 
     const total = await Product.countDocuments(filter);
 
-    // ✅ Fix: Consistent response structure
     res.json({
       success: true,
       message: 'Search completed successfully',
       data: {
-        products, // ✅ Nested under data
+        products,
         pagination: {
           currentPage: Number(page),
           totalPages: Math.ceil(total / limit),
@@ -306,7 +593,6 @@ const getSearchSuggestions = async (req, res) => {
       tags: { $in: [new RegExp(q, 'i')] }
     });
 
-    // ✅ Fix: Consistent response structure
     res.json({
       success: true,
       message: 'Search suggestions retrieved successfully',
@@ -411,7 +697,7 @@ const getProductRecommendations = async (req, res) => {
       .limit(limit - similarProducts.length);
     }
 
-    // ✅ Fix: Return all recommendations as a single products array for frontend compatibility
+    // Return all recommendations as a single products array for frontend compatibility
     const allRecommendations = [
       ...similarProducts,
       ...fallbackProducts,
@@ -423,7 +709,7 @@ const getProductRecommendations = async (req, res) => {
       success: true,
       message: 'Product recommendations retrieved successfully',
       data: {
-        products: allRecommendations, // ✅ Frontend expects this structure
+        products: allRecommendations, // Frontend expects this structure
         similar: similarProducts,
         alternatives: alternatives,
         betterDeals: betterDeals,
@@ -450,12 +736,12 @@ const getProductRecommendations = async (req, res) => {
 module.exports = {
   getAllProducts,
   getProductById,
-  createProduct,
-  updateProduct,
-  deleteProduct,
+  createProduct,          // ✅ Added back
+  updateProduct,          // ✅ Added back  
+  deleteProduct,          // ✅ Added back
   getProductsByCategory,
-  updateProductStock,
-  searchProducts, // ✅ Add search endpoint
+  updateProductStock,     // ✅ Added back
+  searchProducts,
   getSearchSuggestions,
   getProductRecommendations
 };
