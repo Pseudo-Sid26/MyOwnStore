@@ -50,6 +50,7 @@ function App() {
                 <Route path="/guest-checkout" element={<GuestCheckoutPage />} />
                 <Route path="/orders" element={<OrdersPage />} />
                 <Route path="/order-confirmation/:orderId" element={<OrderConfirmationPage />} />
+                <Route path="/order-details/:orderId" element={<OrderConfirmationPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />

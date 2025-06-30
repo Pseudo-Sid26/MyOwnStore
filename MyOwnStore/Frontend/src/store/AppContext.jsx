@@ -593,6 +593,7 @@ export function AppProvider({ children }) {
     },
 
     clearCart: async () => {
+      // Clear local cart immediately
       dispatch({ type: actionTypes.CLEAR_CART })
       
       // Sync clear with backend
@@ -600,17 +601,61 @@ export function AppProvider({ children }) {
         try {
           await cartAPI.clear()
           console.log('✅ Cart cleared in backend')
+          
+          // Extra verification: load cart from backend to confirm it's empty
+          setTimeout(async () => {
+            try {
+              const response = await cartAPI.get()
+              const backendCart = response.data?.data?.cart?.items || []
+              if (backendCart.length > 0) {
+                console.log('⚠️ Backend cart not empty after clear, force clearing...')
+                dispatch({ type: actionTypes.CLEAR_CART })
+              }
+            } catch (error) {
+              console.error('❌ Error verifying cart clear:', error)
+            }
+          }, 500)
+          
         } catch (error) {
           console.error('❌ Error clearing cart in backend:', error)
         }
       }
     },
 
-    setCart: (cart) => {
-      dispatch({
-        type: actionTypes.SET_CART,
-        payload: cart,
-      })
+    loadCart: async () => {
+      if (state.isAuthenticated && state.token) {
+        try {
+          console.log('📦 Loading cart from backend...')
+          const response = await cartAPI.get()
+          const backendCart = response.data?.data?.cart?.items || []
+          
+          // Convert backend cart to frontend format
+          const formattedCart = backendCart.map(item => ({
+            productId: item.productId._id,
+            name: item.productId.title,
+            price: item.price,
+            image: item.productId.images?.[0] || '',
+            quantity: item.quantity,
+            stock: item.productId.stock,
+            selectedSize: item.size,
+            selectedColor: item.color
+          }))
+          
+          dispatch({
+            type: actionTypes.SET_CART,
+            payload: formattedCart
+          })
+          
+          console.log('✅ Cart loaded from backend:', formattedCart.length, 'items')
+          return formattedCart
+        } catch (error) {
+          console.error('❌ Error loading cart from backend:', error)
+          throw error
+        }
+      } else {
+        console.log('ℹ️ User not authenticated, using local cart')
+        return state.cart
+      }
     },
 
     // Wishlist actions

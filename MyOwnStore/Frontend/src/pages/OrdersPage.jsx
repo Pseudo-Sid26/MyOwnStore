@@ -43,6 +43,12 @@ const OrdersPage = () => {
     fetchOrders()
   }, [currentPage])
 
+  // Refresh orders when component mounts (useful after redirect from checkout)
+  useEffect(() => {
+    console.log('📄 OrdersPage mounted, refreshing orders...')
+    fetchOrders()
+  }, [])
+
   useEffect(() => {
     filterOrders()
   }, [orders, statusFilter, searchQuery])
@@ -56,11 +62,18 @@ const OrdersPage = () => {
         sort: '-createdAt'
       })
       
-      setOrders(response.data.orders || [])
-      setTotalPages(response.data.totalPages || 1)
+      if (response.data.success) {
+        setOrders(response.data.data.orders || [])
+        setTotalPages(response.data.data.pagination?.totalPages || 1)
+      } else {
+        setOrders([])
+        setTotalPages(1)
+      }
     } catch (error) {
       console.error('Error fetching orders:', error)
       actions.setError('Failed to load orders')
+      setOrders([])
+      setTotalPages(1)
     } finally {
       setIsLoading(false)
     }
@@ -80,7 +93,8 @@ const OrdersPage = () => {
       filtered = filtered.filter(order => 
         order.orderNumber.toLowerCase().includes(query) ||
         order.items.some(item => 
-          item.product?.name?.toLowerCase().includes(query)
+          item.title?.toLowerCase().includes(query) ||
+          item.productId?.title?.toLowerCase().includes(query)
         )
       )
     }
@@ -237,14 +251,14 @@ const OrdersPage = () => {
                     <div className="flex items-center space-x-4 mt-4 sm:mt-0">
                       <div className="text-right">
                         <p className="text-lg font-semibold text-gray-900">
-                          {formatPrice(order.total)}
+                          {formatPrice(order.pricing?.total || 0)}
                         </p>
                         <p className="text-sm text-gray-600">
                           {order.items.length} item{order.items.length !== 1 ? 's' : ''}
                         </p>
                       </div>
                       <Button variant="outline" size="sm" asChild>
-                        <Link to={`/orders/${order._id}`}>
+                        <Link to={`/order-details/${order._id}`}>
                           <Eye className="h-4 w-4 mr-2" />
                           View Details
                         </Link>
@@ -259,13 +273,13 @@ const OrdersPage = () => {
                     {order.items.slice(0, 3).map((item) => (
                       <div key={item._id} className="flex items-center space-x-4">
                         <img
-                          src={item.product?.images?.[0] || '/placeholder-product.jpg'}
-                          alt={item.product?.name || 'Product'}
+                          src={item.productId?.images?.[0] || '/placeholder-product.jpg'}
+                          alt={item.title || 'Product'}
                           className="w-12 h-12 object-cover rounded-md"
                         />
                         <div className="flex-1">
                           <h4 className="font-medium text-gray-900 text-sm">
-                            {item.product?.name || 'Product'}
+                            {item.title || item.productId?.title || 'Product'}
                           </h4>
                           <div className="text-xs text-gray-600">
                             {item.size && <span>Size: {item.size}</span>}
@@ -274,7 +288,7 @@ const OrdersPage = () => {
                           </div>
                         </div>
                         <div className="text-sm font-medium text-gray-900">
-                          {formatPrice(item.price * item.quantity)}
+                          {formatPrice(item.totalPrice || (item.price * item.quantity))}
                         </div>
                       </div>
                     ))}
@@ -289,7 +303,7 @@ const OrdersPage = () => {
                   {/* Order Actions */}
                   <div className="flex flex-wrap gap-3 mt-6 pt-6 border-t">
                     <Button variant="outline" size="sm" asChild>
-                      <Link to={`/orders/${order._id}`}>
+                      <Link to={`/order-details/${order._id}`}>
                         View Order Details
                       </Link>
                     </Button>
