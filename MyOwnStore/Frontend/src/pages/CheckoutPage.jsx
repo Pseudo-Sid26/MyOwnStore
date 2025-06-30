@@ -23,6 +23,7 @@ const CheckoutPage = () => {
   const { state, actions } = useApp()
   const [currentStep, setCurrentStep] = useState(1)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [useDefaultAddress, setUseDefaultAddress] = useState(false)
   const [orderData, setOrderData] = useState({
     shippingAddress: {
       fullName: '',
@@ -53,14 +54,70 @@ const CheckoutPage = () => {
 
     // Pre-fill with user data if available
     if (state.user) {
-      setOrderData(prev => ({
-        ...prev,
-        shippingAddress: {
-          ...prev.shippingAddress,
-          fullName: `${state.user.firstName || ''} ${state.user.lastName || ''}`.trim(),
-          ...(state.user.address && state.user.address)
+      console.log('User found:', state.user)
+      console.log('User address array:', state.user.address)
+      
+      const userFullName = state.user.name || `${state.user.firstName || ''} ${state.user.lastName || ''}`.trim() || ''
+      
+      // Get the first address from the address array (if it exists)
+      const userDefaultAddress = state.user.address && Array.isArray(state.user.address) && state.user.address.length > 0 
+        ? state.user.address[0] 
+        : null
+
+      console.log('Default address from array:', userDefaultAddress)
+      
+      // Check if user has a complete address
+      const hasCompleteAddress = userDefaultAddress && 
+        userDefaultAddress.street && 
+        userDefaultAddress.city && 
+        userDefaultAddress.state && 
+        userDefaultAddress.postalCode
+
+      console.log('Has complete address:', hasCompleteAddress)
+      
+      if (hasCompleteAddress) {
+        console.log('Using default address for user')
+        // Set default address as an option and pre-fill
+        setUseDefaultAddress(true)
+        setOrderData(prev => ({
+          ...prev,
+          shippingAddress: {
+            fullName: userFullName,
+            addressLine1: userDefaultAddress.street || '',
+            addressLine2: '', // User model doesn't have addressLine2
+            city: userDefaultAddress.city || '',
+            state: userDefaultAddress.state || '',
+            postalCode: userDefaultAddress.postalCode || '',
+            country: userDefaultAddress.country || 'USA',
+            phone: state.user.phone || ''
+          }
+        }))
+      } else {
+        console.log('Address not found or incomplete. Details:')
+        if (!state.user.address || !Array.isArray(state.user.address) || state.user.address.length === 0) {
+          console.log('- No address array found or empty array')
+        } else if (!userDefaultAddress) {
+          console.log('- First address in array is null/undefined')
+        } else {
+          console.log('- Missing required fields in address:')
+          if (!userDefaultAddress.street) console.log('  - Missing street')
+          if (!userDefaultAddress.city) console.log('  - Missing city')
+          if (!userDefaultAddress.state) console.log('  - Missing state')
+          if (!userDefaultAddress.postalCode) console.log('  - Missing postalCode')
         }
-      }))
+        
+        // Only pre-fill name if no complete address
+        setOrderData(prev => ({
+          ...prev,
+          shippingAddress: {
+            ...prev.shippingAddress,
+            fullName: userFullName,
+            phone: state.user.phone || ''
+          }
+        }))
+      }
+    } else {
+      console.log('No user found - guest checkout')
     }
   }, [state.cart, state.user, navigate])
 
@@ -72,6 +129,49 @@ const CheckoutPage = () => {
         [field]: value
       }
     }))
+  }
+
+  const handleAddressOptionChange = (useDefault) => {
+    console.log('Address option changed to:', useDefault ? 'default' : 'new')
+    setUseDefaultAddress(useDefault)
+    
+    if (useDefault && state.user?.address && Array.isArray(state.user.address) && state.user.address.length > 0) {
+      console.log('Switching to default address')
+      const userDefaultAddress = state.user.address[0]
+      const userFullName = state.user.name || `${state.user.firstName || ''} ${state.user.lastName || ''}`.trim() || ''
+      
+      // Use default address
+      setOrderData(prev => ({
+        ...prev,
+        shippingAddress: {
+          fullName: userFullName,
+          addressLine1: userDefaultAddress.street || '',
+          addressLine2: '', // User model doesn't have addressLine2
+          city: userDefaultAddress.city || '',
+          state: userDefaultAddress.state || '',
+          postalCode: userDefaultAddress.postalCode || '',
+          country: userDefaultAddress.country || 'USA',
+          phone: state.user.phone || ''
+        }
+      }))
+    } else {
+      console.log('Switching to new address entry')
+      // Clear for new address
+      const userFullName = state.user?.name || `${state.user?.firstName || ''} ${state.user?.lastName || ''}`.trim() || ''
+      setOrderData(prev => ({
+        ...prev,
+        shippingAddress: {
+          fullName: userFullName,
+          addressLine1: '',
+          addressLine2: '',
+          city: '',
+          state: '',
+          postalCode: '',
+          country: 'USA',
+          phone: state.user?.phone || ''
+        }
+      }))
+    }
   }
 
   const validateStep = (step) => {
@@ -209,89 +309,172 @@ const CheckoutPage = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Full Name *
-                      </label>
-                      <Input
-                        value={orderData.shippingAddress.fullName}
-                        onChange={(e) => handleInputChange('shippingAddress', 'fullName', e.target.value)}
-                        placeholder="John Doe"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Phone Number *
-                      </label>
-                      <Input
-                        value={orderData.shippingAddress.phone}
-                        onChange={(e) => handleInputChange('shippingAddress', 'phone', e.target.value)}
-                        placeholder="+1 (555) 123-4567"
-                        required
-                      />
-                    </div>
-                  </div>
+                  {/* Address Selection for Logged-in Users */}
+                  {state.user && state.user.address && 
+                   Array.isArray(state.user.address) && 
+                   state.user.address.length > 0 &&
+                   state.user.address[0].street && 
+                   state.user.address[0].city && 
+                   state.user.address[0].state && 
+                   state.user.address[0].postalCode && (
+                    <div className="space-y-4">
+                      <h4 className="font-medium text-gray-900">Choose Shipping Address</h4>
+                      
+                      {/* Default Address Option */}
+                      <div
+                        className={`relative border rounded-lg p-4 cursor-pointer ${
+                          useDefaultAddress
+                            ? 'border-primary-500 bg-primary-50'
+                            : 'border-gray-300 hover:border-gray-400'
+                        }`}
+                        onClick={() => handleAddressOptionChange(true)}
+                      >
+                        <div className="flex items-start">
+                          <input
+                            type="radio"
+                            name="addressOption"
+                            value="default"
+                            checked={useDefaultAddress}
+                            onChange={() => handleAddressOptionChange(true)}
+                            className="h-4 w-4 text-primary-600 focus:ring-primary-500 mt-1"
+                          />
+                          <div className="ml-3 flex-1">
+                            <label className="block text-sm font-medium text-gray-900">
+                              Use My Default Address
+                            </label>
+                            <div className="mt-1 text-sm text-gray-600">
+                              <p>{state.user.name}</p>
+                              <p>{state.user.address[0].street}</p>
+                              <p>{state.user.address[0].city}, {state.user.address[0].state} {state.user.address[0].postalCode}</p>
+                              <p>{state.user.address[0].country}</p>
+                              {state.user.phone && <p>{state.user.phone}</p>}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Address Line 1 *
-                    </label>
-                    <Input
-                      value={orderData.shippingAddress.addressLine1}
-                      onChange={(e) => handleInputChange('shippingAddress', 'addressLine1', e.target.value)}
-                      placeholder="123 Main Street"
-                      required
-                    />
-                  </div>
+                      {/* New Address Option */}
+                      <div
+                        className={`relative border rounded-lg p-4 cursor-pointer ${
+                          !useDefaultAddress
+                            ? 'border-primary-500 bg-primary-50'
+                            : 'border-gray-300 hover:border-gray-400'
+                        }`}
+                        onClick={() => handleAddressOptionChange(false)}
+                      >
+                        <div className="flex items-center">
+                          <input
+                            type="radio"
+                            name="addressOption"
+                            value="new"
+                            checked={!useDefaultAddress}
+                            onChange={() => handleAddressOptionChange(false)}
+                            className="h-4 w-4 text-primary-600 focus:ring-primary-500"
+                          />
+                          <div className="ml-3">
+                            <label className="block text-sm font-medium text-gray-900">
+                              Use a Different Address
+                            </label>
+                            <p className="text-sm text-gray-600">Enter a new shipping address</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Address Line 2
-                    </label>
-                    <Input
-                      value={orderData.shippingAddress.addressLine2}
-                      onChange={(e) => handleInputChange('shippingAddress', 'addressLine2', e.target.value)}
-                      placeholder="Apartment, suite, etc. (optional)"
-                    />
-                  </div>
+                  {/* Address Form - Show when no default address or when "new address" is selected */}
+                  {(!state.user || 
+                    !state.user.address || 
+                    !Array.isArray(state.user.address) ||
+                    state.user.address.length === 0 ||
+                    !state.user.address[0].street || 
+                    !useDefaultAddress) && (
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Full Name *
+                          </label>
+                          <Input
+                            value={orderData.shippingAddress.fullName}
+                            onChange={(e) => handleInputChange('shippingAddress', 'fullName', e.target.value)}
+                            placeholder="John Doe"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Phone Number *
+                          </label>
+                          <Input
+                            value={orderData.shippingAddress.phone}
+                            onChange={(e) => handleInputChange('shippingAddress', 'phone', e.target.value)}
+                            placeholder="+1 (555) 123-4567"
+                            required
+                          />
+                        </div>
+                      </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        City *
-                      </label>
-                      <Input
-                        value={orderData.shippingAddress.city}
-                        onChange={(e) => handleInputChange('shippingAddress', 'city', e.target.value)}
-                        placeholder="New York"
-                        required
-                      />
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Address Line 1 *
+                        </label>
+                        <Input
+                          value={orderData.shippingAddress.addressLine1}
+                          onChange={(e) => handleInputChange('shippingAddress', 'addressLine1', e.target.value)}
+                          placeholder="123 Main Street"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Address Line 2
+                        </label>
+                        <Input
+                          value={orderData.shippingAddress.addressLine2}
+                          onChange={(e) => handleInputChange('shippingAddress', 'addressLine2', e.target.value)}
+                          placeholder="Apartment, suite, etc. (optional)"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            City *
+                          </label>
+                          <Input
+                            value={orderData.shippingAddress.city}
+                            onChange={(e) => handleInputChange('shippingAddress', 'city', e.target.value)}
+                            placeholder="New York"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            State *
+                          </label>
+                          <Input
+                            value={orderData.shippingAddress.state}
+                            onChange={(e) => handleInputChange('shippingAddress', 'state', e.target.value)}
+                            placeholder="NY"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            ZIP Code *
+                          </label>
+                          <Input
+                            value={orderData.shippingAddress.postalCode}
+                            onChange={(e) => handleInputChange('shippingAddress', 'postalCode', e.target.value)}
+                            placeholder="10001"
+                            required
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        State *
-                      </label>
-                      <Input
-                        value={orderData.shippingAddress.state}
-                        onChange={(e) => handleInputChange('shippingAddress', 'state', e.target.value)}
-                        placeholder="NY"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        ZIP Code *
-                      </label>
-                      <Input
-                        value={orderData.shippingAddress.postalCode}
-                        onChange={(e) => handleInputChange('shippingAddress', 'postalCode', e.target.value)}
-                        placeholder="10001"
-                        required
-                      />
-                    </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
             )}
