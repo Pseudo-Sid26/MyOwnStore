@@ -234,6 +234,7 @@ export const reviewsAPI = {
   create: (reviewData) => api.post('/reviews', reviewData),
   update: (id, reviewData) => api.put(`/reviews/${id}`, reviewData),
   delete: (id) => api.delete(`/reviews/${id}`),
+  toggleHelpful: (id) => api.post(`/reviews/${id}/helpful`),
 }
 
 // Coupons API
@@ -248,6 +249,14 @@ export const guestAPI = {
   trackOrder: (trackingNumber, email) => api.get(`/guest/order/track`, {
     params: { trackingNumber, email }
   }),
+}
+
+// Wishlist API
+export const wishlistAPI = {
+  get: () => api.get('/wishlist'),
+  add: (productId) => api.post('/wishlist/add', { productId }),
+  remove: (productId) => api.delete(`/wishlist/remove/${productId}`),
+  clear: () => api.delete('/wishlist/clear'),
 }
 
 export default api

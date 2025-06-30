@@ -112,3 +112,48 @@ export function removeStorageItem(key) {
     console.error(`Error removing localStorage key "${key}":`, error)
   }
 }
+
+// Cart utility functions
+export function calculateCartTotalWithTax(items, taxRate = 0.08) {
+  const subtotal = calculateCartTotal(items)
+  const tax = subtotal * taxRate
+  return {
+    subtotal,
+    tax,
+    total: subtotal + tax
+  }
+}
+
+export function getCartSummary(items) {
+  const totalItems = items.reduce((sum, item) => sum + item.quantity, 0)
+  const totalValue = calculateCartTotal(items)
+  const uniqueItems = items.length
+  
+  return {
+    totalItems,
+    uniqueItems,
+    totalValue,
+    averageItemValue: totalValue / totalItems || 0
+  }
+}
+
+export function validateCartStock(items) {
+  return items.map(item => ({
+    ...item,
+    isStockValid: !item.stock || item.quantity <= item.stock,
+    stockIssue: item.stock && item.quantity > item.stock ? 
+      `Only ${item.stock} available` : null
+  }))
+}
+
+export function suggestShippingUpgrade(subtotal, shippingThreshold = 50) {
+  if (subtotal >= shippingThreshold) {
+    return null
+  }
+  
+  const needed = shippingThreshold - subtotal
+  return {
+    needed,
+    message: `Add ${formatPrice(needed)} more for free shipping`
+  }
+}

@@ -26,6 +26,7 @@ import TermsPage from './pages/TermsPage';
 import PrivacyPage from './pages/PrivacyPage';
 import ContactPage from './pages/ContactPage';
 import AboutPage from './pages/AboutPage';
+import WishlistPage from './pages/WishlistPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 function App() {
@@ -44,6 +45,7 @@ function App() {
                 <Route path="/search" element={<SearchPage />} />
                 <Route path="/deals" element={<DealsPage />} />
                 <Route path="/cart" element={<CartPage />} />
+                <Route path="/wishlist" element={<WishlistPage />} />
                 <Route path="/checkout" element={<CheckoutPage />} />
                 <Route path="/guest-checkout" element={<GuestCheckoutPage />} />
                 <Route path="/orders" element={<OrdersPage />} />

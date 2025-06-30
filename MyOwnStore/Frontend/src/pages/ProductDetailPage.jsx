@@ -13,7 +13,7 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react'
-import { productsAPI } from '../services/api'
+import { productsAPI, cartAPI } from '../services/api'
 import { useApp } from '../store/AppContext'
 import { Button } from '../components/ui/Button'
 import { Card, CardContent } from '../components/ui/Card'
@@ -21,6 +21,7 @@ import { Badge } from '../components/ui/Badge'
 import { LoadingSpinner } from '../components/ui/Loading'
 import ProductAttributes from '../components/ui/ProductAttributes'
 import { formatPrice } from '../lib/utils'
+import  ReviewSection  from '../components/features/ReviewSection'
 
 const ProductDetailPage = () => {
   const { id } = useParams()
@@ -34,6 +35,9 @@ const ProductDetailPage = () => {
   const [isAddingToCart, setIsAddingToCart] = useState(false)
   const [activeTab, setActiveTab] = useState('description')
   const { state, actions } = useApp()
+
+  // Check if product is in wishlist
+  const isInWishlist = product ? actions.isInWishlist(product._id) : false
 
   // In the useEffect, update the recommendation fetching:
   useEffect(() => {
@@ -90,19 +94,24 @@ const ProductDetailPage = () => {
     try {
       setIsAddingToCart(true)
 
-      // ✅ Fix: Use correct product structure
-      const cartItem = {
-        id: product._id,
-        title: product.title,
+      // Use the correct structure that the action expects
+      const productData = {
+        _id: product._id,
+        name: product.title, // Map title to name
         price: product.discountedPrice || product.price,
-        image: product.images?.[0],
-        selectedSize: selectedSize,
-        quantity: quantity,
+        images: product.images,
         stock: product.stock,
-        brand: product.brand
+        selectedSize: selectedSize,
+        selectedColor: selectedColor
       }
 
-      actions.addToCart(cartItem)
+      actions.addToCart(productData, quantity)
+      
+      // If user is logged in, sync with backend
+      if (state.user) {
+        await cartAPI.addItem(product._id, quantity)
+      }
+      
       actions.setSuccess(`${product.title} added to cart!`)
 
     } catch (error) {
@@ -118,6 +127,17 @@ const ProductDetailPage = () => {
     // ✅ Fix: Use 'stock' instead of 'inventory'
     if (newQuantity >= 1 && newQuantity <= (product?.stock || 999)) {
       setQuantity(newQuantity)
+    }
+  }
+
+  const handleWishlistToggle = () => {
+    if (!product) return
+    
+    const wasAdded = actions.toggleWishlist(product)
+    if (wasAdded) {
+      actions.setSuccess(`${product.title} added to wishlist!`)
+    } else {
+      actions.setSuccess(`${product.title} removed from wishlist!`)
     }
   }
 
@@ -432,8 +452,14 @@ const ProductDetailPage = () => {
                   </>
                 )}
               </Button>
-              <Button variant="outline" size="lg" title="Add to Wishlist">
-                <Heart className="h-5 w-5" />
+              <Button 
+                variant="outline" 
+                size="lg" 
+                onClick={handleWishlistToggle}
+                title={isInWishlist ? "Remove from Wishlist" : "Add to Wishlist"}
+                className={isInWishlist ? "text-red-600 hover:text-red-700" : ""}
+              >
+                <Heart className={`h-5 w-5 ${isInWishlist ? 'fill-current' : ''}`} />
               </Button>
               <Button variant="outline" size="lg" title="Share">
                 <Share2 className="h-5 w-5" />
@@ -474,7 +500,7 @@ const ProductDetailPage = () => {
       <div className="border-t pt-16">
         <div className="border-b border-gray-200 mb-8">
           <nav className="-mb-px flex space-x-8">
-            {['description', 'details'].map((tab) => (
+            {['description', 'details', 'reviews'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -590,6 +616,12 @@ const ProductDetailPage = () => {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'reviews' && (
+            <div>
+              <ReviewSection productId={product._id} />
             </div>
           )}
         </div>

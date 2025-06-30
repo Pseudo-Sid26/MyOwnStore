@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Search, ShoppingCart, User, Menu, X } from 'lucide-react'
+import { Search, ShoppingCart, User, Menu, X, Heart } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import { Button } from '../ui/Button'
 import { Badge } from '../ui/Badge'
@@ -68,6 +68,19 @@ const Header = () => {
 
           {/* Desktop Right Side */}
           <div className="hidden md:flex items-center space-x-4">
+            {/* Wishlist */}
+            <Link to="/wishlist" className="relative p-2 text-gray-700 hover:text-primary-600 transition-colors">
+              <Heart className="h-6 w-6" />
+              {state.wishlist?.length > 0 && (
+                <Badge 
+                  variant="destructive" 
+                  className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs"
+                >
+                  {state.wishlist.length}
+                </Badge>
+              )}
+            </Link>
+
             {/* Cart */}
             <Link to="/cart" className="relative p-2 text-gray-700 hover:text-primary-600 transition-colors">
               <ShoppingCart className="h-6 w-6" />
@@ -165,6 +178,21 @@ const Header = () => {
                 onClick={() => setIsMenuOpen(false)}
               >
                 Deals
+              </Link>
+
+              {/* Mobile Wishlist */}
+              <Link
+                to="/wishlist"
+                className="flex items-center px-3 py-2 text-gray-700 hover:text-primary-600 font-medium"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                <Heart className="h-5 w-5 mr-2" />
+                Wishlist
+                {state.wishlist?.length > 0 && (
+                  <Badge variant="destructive" className="ml-2">
+                    {state.wishlist.length}
+                  </Badge>
+                )}
               </Link>
 
               {/* Mobile Cart */}

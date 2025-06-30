@@ -7,6 +7,7 @@ const initialState = {
   token: getStorageItem('token'),
   isAuthenticated: !!(getStorageItem('user') && getStorageItem('token')),
   cart: getStorageItem('cart', []),
+  wishlist: getStorageItem('wishlist', []),
   isLoading: false,
   error: null,
   success: null,
@@ -28,6 +29,10 @@ export const actionTypes = {
   REMOVE_FROM_CART: 'REMOVE_FROM_CART',
   CLEAR_CART: 'CLEAR_CART',
   SET_CART: 'SET_CART',
+  ADD_TO_WISHLIST: 'ADD_TO_WISHLIST',
+  REMOVE_FROM_WISHLIST: 'REMOVE_FROM_WISHLIST',
+  CLEAR_WISHLIST: 'CLEAR_WISHLIST',
+  SET_WISHLIST: 'SET_WISHLIST',
   TOGGLE_THEME: 'TOGGLE_THEME',
 }
 
@@ -59,6 +64,7 @@ function appReducer(state, action) {
         token: null,
         isAuthenticated: false,
         cart: [],
+        wishlist: [],
         error: null,
         success: null,
       }
@@ -98,21 +104,31 @@ function appReducer(state, action) {
       }
 
     case actionTypes.ADD_TO_CART:
+      console.log('ADD_TO_CART reducer called with:', action.payload)
+      console.log('Current cart:', state.cart)
+      
       const existingItemIndex = state.cart.findIndex(
         item => item.productId === action.payload.productId
       )
+      
+      console.log('Existing item index:', existingItemIndex)
 
       if (existingItemIndex >= 0) {
+        console.log('Updating existing item quantity')
         const updatedCart = [...state.cart]
         updatedCart[existingItemIndex].quantity += action.payload.quantity
+        console.log('Updated cart:', updatedCart)
         return {
           ...state,
           cart: updatedCart,
         }
       } else {
+        console.log('Adding new item to cart')
+        const newCart = [...state.cart, action.payload]
+        console.log('New cart:', newCart)
         return {
           ...state,
-          cart: [...state.cart, action.payload],
+          cart: newCart,
         }
       }
 
@@ -142,6 +158,38 @@ function appReducer(state, action) {
       return {
         ...state,
         cart: action.payload,
+      }
+
+    case actionTypes.ADD_TO_WISHLIST:
+      const isAlreadyInWishlist = state.wishlist.some(
+        item => item.productId === action.payload.productId
+      )
+      
+      if (isAlreadyInWishlist) {
+        return state // Don't add if already in wishlist
+      }
+
+      return {
+        ...state,
+        wishlist: [...state.wishlist, action.payload],
+      }
+
+    case actionTypes.REMOVE_FROM_WISHLIST:
+      return {
+        ...state,
+        wishlist: state.wishlist.filter(item => item.productId !== action.payload),
+      }
+
+    case actionTypes.CLEAR_WISHLIST:
+      return {
+        ...state,
+        wishlist: [],
+      }
+
+    case actionTypes.SET_WISHLIST:
+      return {
+        ...state,
+        wishlist: action.payload,
       }
 
     case actionTypes.TOGGLE_THEME:
@@ -177,6 +225,10 @@ export function AppProvider({ children }) {
   useEffect(() => {
     setStorageItem('cart', state.cart)
   }, [state.cart])
+
+  useEffect(() => {
+    setStorageItem('wishlist', state.wishlist)
+  }, [state.wishlist])
 
   useEffect(() => {
     setStorageItem('theme', state.theme)
@@ -266,14 +318,24 @@ export function AppProvider({ children }) {
     },
 
     addToCart: (product, quantity = 1) => {
+      console.log('Adding to cart:', {
+        productId: product._id,
+        name: product.name || product.title,
+        price: product.price,
+        quantity
+      })
+      
       dispatch({
         type: actionTypes.ADD_TO_CART,
         payload: {
           productId: product._id,
-          name: product.name,
+          name: product.name || product.title, // Handle both name and title
           price: product.price,
           image: product.images?.[0] || '',
           quantity,
+          stock: product.stock,
+          selectedSize: product.selectedSize,
+          selectedColor: product.selectedColor,
         },
       })
     },
@@ -308,6 +370,66 @@ export function AppProvider({ children }) {
         type: actionTypes.SET_CART,
         payload: cart,
       })
+    },
+
+    // Wishlist actions
+    addToWishlist: (product) => {
+      dispatch({
+        type: actionTypes.ADD_TO_WISHLIST,
+        payload: {
+          productId: product._id,
+          name: product.name || product.title,
+          price: product.price,
+          image: product.images?.[0] || '',
+          dateAdded: new Date().toISOString(),
+        },
+      })
+    },
+
+    removeFromWishlist: (productId) => {
+      dispatch({
+        type: actionTypes.REMOVE_FROM_WISHLIST,
+        payload: productId,
+      })
+    },
+
+    toggleWishlist: (product) => {
+      const isInWishlist = state.wishlist.some(item => item.productId === product._id)
+      if (isInWishlist) {
+        dispatch({
+          type: actionTypes.REMOVE_FROM_WISHLIST,
+          payload: product._id,
+        })
+        return false // Removed from wishlist
+      } else {
+        dispatch({
+          type: actionTypes.ADD_TO_WISHLIST,
+          payload: {
+            productId: product._id,
+            name: product.name || product.title,
+            price: product.price,
+            image: product.images?.[0] || '',
+            dateAdded: new Date().toISOString(),
+          },
+        })
+        return true // Added to wishlist
+      }
+    },
+
+    clearWishlist: () => {
+      dispatch({ type: actionTypes.CLEAR_WISHLIST })
+    },
+
+    setWishlist: (wishlist) => {
+      dispatch({
+        type: actionTypes.SET_WISHLIST,
+        payload: wishlist,
+      })
+    },
+
+    // Helper to check if product is in wishlist
+    isInWishlist: (productId) => {
+      return state.wishlist.some(item => item.productId === productId)
     },
 
     toggleTheme: () => {

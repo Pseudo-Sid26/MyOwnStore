@@ -547,8 +547,20 @@ const SearchPage = () => {
                           <ShoppingCart className="h-4 w-4 mr-2" />
                           Add to Cart
                         </Button>
-                        <Button variant="outline" size="icon">
-                          <Heart className="h-4 w-4" />
+                        <Button 
+                          variant="outline" 
+                          size="icon"
+                          onClick={() => {
+                            const wasAdded = actions.toggleWishlist(product)
+                            if (wasAdded) {
+                              actions.setSuccess(`${product.name || product.title} added to wishlist!`)
+                            } else {
+                              actions.setSuccess(`${product.name || product.title} removed from wishlist!`)
+                            }
+                          }}
+                          className={actions.isInWishlist(product._id) ? "text-red-600 hover:text-red-700" : ""}
+                        >
+                          <Heart className={`h-4 w-4 ${actions.isInWishlist(product._id) ? 'fill-current' : ''}`} />
                         </Button>
                       </CardFooter>
                     </Card>
