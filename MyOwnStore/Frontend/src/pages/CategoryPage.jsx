@@ -8,6 +8,8 @@ import { Badge } from '../components/ui/Badge'
 import { LoadingSpinner } from '../components/ui/Loading'
 import { Star, Grid, List, Filter, SortAsc } from 'lucide-react'
 import { formatPrice } from '../lib/utils'
+import ProductAttributes from '../components/ui/ProductAttributes'
+import { getCategoryFilters, getCategoryDisplayName } from '../lib/categoryUtils'
 
 const CategoryPage = () => {
   const { categoryId } = useParams() // Get categoryId from URL params
@@ -20,7 +22,9 @@ const CategoryPage = () => {
     minPrice: '',
     maxPrice: '',
     rating: '',
-    inStock: false
+    inStock: false,
+    // Dynamic category-specific filters
+    categoryFilters: {}
   })
   const { actions } = useApp()
 
@@ -29,14 +33,14 @@ const CategoryPage = () => {
       try {
         setIsLoading(true)
         
-        // Fetch category details and products in parallel
+        // Fetch category details and products using API methods
         const [categoryResponse, productsResponse] = await Promise.all([
           categoriesAPI.getById(categoryId),
           productsAPI.getAll({ category: categoryId })
         ])
         
-        setCategory(categoryResponse.data.category)
-        setProducts(productsResponse.data.products || [])
+        setCategory(categoryResponse.data.data.category)
+        setProducts(productsResponse.data.data.products || [])
       } catch (error) {
         console.error('Error fetching category data:', error)
         actions.setError('Failed to load category data')
@@ -60,13 +64,60 @@ const CategoryPage = () => {
     }
   }
 
+  // Get category-specific filters
+  const categoryFilters = category ? getCategoryFilters(category.name) : []
+
+  // Handle category-specific filter changes
+  const handleCategoryFilterChange = (filterKey, value) => {
+    setFilterBy(prev => ({
+      ...prev,
+      categoryFilters: {
+        ...prev.categoryFilters,
+        [filterKey]: value
+      }
+    }))
+  }
+
   // Filter and sort products
   const filteredAndSortedProducts = products
     .filter(product => {
+      // Basic filters
       if (filterBy.minPrice && product.price < parseFloat(filterBy.minPrice)) return false
       if (filterBy.maxPrice && product.price > parseFloat(filterBy.maxPrice)) return false
       if (filterBy.rating && product.rating < parseFloat(filterBy.rating)) return false
       if (filterBy.inStock && product.stock === 0) return false
+      
+      // Category-specific filters
+      for (const [filterKey, filterValue] of Object.entries(filterBy.categoryFilters)) {
+        if (!filterValue) continue
+        
+        // Check in attributes
+        if (product.attributes && product.attributes[filterKey]) {
+          const productValue = product.attributes[filterKey]
+          if (Array.isArray(productValue)) {
+            if (!productValue.some(val => val.toLowerCase().includes(filterValue.toLowerCase()))) return false
+          } else {
+            if (!productValue.toLowerCase().includes(filterValue.toLowerCase())) return false
+          }
+        }
+        // Check in specifications
+        else if (product.specifications && product.specifications[filterKey]) {
+          const productValue = product.specifications[filterKey]
+          if (Array.isArray(productValue)) {
+            if (!productValue.some(val => val.toLowerCase().includes(filterValue.toLowerCase()))) return false
+          } else {
+            if (!productValue.toLowerCase().includes(filterValue.toLowerCase())) return false
+          }
+        }
+        // Check in main product fields (brand, etc.)
+        else if (product[filterKey]) {
+          if (!product[filterKey].toLowerCase().includes(filterValue.toLowerCase())) return false
+        }
+        else {
+          return false
+        }
+      }
+      
       return true
     })
     .sort((a, b) => {
@@ -79,7 +130,7 @@ const CategoryPage = () => {
           return (b.rating || 0) - (a.rating || 0)
         case 'name':
         default:
-          return a.name.localeCompare(b.name)
+          return (a.title || '').localeCompare(b.title || '')
       }
     })
 
@@ -212,11 +263,40 @@ const CategoryPage = () => {
                 </label>
               </div>
 
+              {/* Category-specific filters */}
+              {categoryFilters.map((filter) => (
+                <div key={filter.key}>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {filter.label}
+                  </label>
+                  {filter.type === 'select' ? (
+                    <select
+                      value={filterBy.categoryFilters[filter.key] || ''}
+                      onChange={(e) => handleCategoryFilterChange(filter.key, e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    >
+                      <option value="">All {filter.label}</option>
+                      {filter.options?.map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder={`Search ${filter.label}`}
+                      value={filterBy.categoryFilters[filter.key] || ''}
+                      onChange={(e) => handleCategoryFilterChange(filter.key, e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  )}
+                </div>
+              ))}
+
               {/* Clear Filters */}
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setFilterBy({minPrice: '', maxPrice: '', rating: '', inStock: false})}
+                onClick={() => setFilterBy({minPrice: '', maxPrice: '', rating: '', inStock: false, categoryFilters: {}})}
                 className="w-full"
               >
                 Clear Filters
@@ -270,7 +350,7 @@ const CategoryPage = () => {
               <div className="text-6xl mb-4">📦</div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">No products found</h3>
               <p className="text-gray-600 mb-4">Try adjusting your filters or check back later</p>
-              <Button onClick={() => setFilterBy({minPrice: '', maxPrice: '', rating: '', inStock: false})}>
+              <Button onClick={() => setFilterBy({minPrice: '', maxPrice: '', rating: '', inStock: false, categoryFilters: {}})}>
                 Clear Filters
               </Button>
             </div>
@@ -286,7 +366,7 @@ const CategoryPage = () => {
                   <div className={viewMode === 'list' ? 'w-48 flex-shrink-0' : 'aspect-square'}>
                     <img
                       src={product.images?.[0] || '/placeholder-product.jpg'}
-                      alt={product.name}
+                      alt={product.title}
                       className={`w-full h-full object-cover ${
                         viewMode === 'list' ? 'rounded-l-lg' : 'rounded-t-lg'
                       }`}
@@ -296,8 +376,13 @@ const CategoryPage = () => {
                   <div className={`p-4 ${viewMode === 'list' ? 'flex-1 flex flex-col justify-between' : ''}`}>
                     <div>
                       <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">
-                        {product.name}
+                        {product.title}
                       </h3>
+                      
+                      {/* Product Attributes */}
+                      <div className="mb-3">
+                        <ProductAttributes product={product} variant="compact" />
+                      </div>
                       
                       <div className="flex items-center mb-2">
                         <div className="flex items-center">

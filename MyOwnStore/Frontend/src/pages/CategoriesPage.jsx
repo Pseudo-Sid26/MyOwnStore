@@ -16,8 +16,11 @@ const CategoriesPage = () => {
     const fetchCategories = async () => {
       try {
         setIsLoading(true)
-        const response = await categoriesAPI.getAll()
-        setCategories(response.data.categories || [])
+        const response = await fetch('http://localhost:5000/api/categories')
+        const data = await response.json()
+        console.log('Categories response:', data) // Debug log
+        
+        setCategories(data.data?.categories || [])
       } catch (error) {
         console.error('Error fetching categories:', error)
         actions.setError('Failed to load categories')

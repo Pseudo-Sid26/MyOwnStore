@@ -19,6 +19,7 @@ import { Button } from '../components/ui/Button'
 import { Card, CardContent } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { LoadingSpinner } from '../components/ui/Loading'
+import ProductAttributes from '../components/ui/ProductAttributes'
 import { formatPrice } from '../lib/utils'
 
 const ProductDetailPage = () => {
