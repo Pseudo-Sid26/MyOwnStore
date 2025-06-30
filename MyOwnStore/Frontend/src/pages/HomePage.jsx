@@ -202,7 +202,7 @@ const HomePage = () => {
                               </Button>
                             </Link>
                             <Link to="/categories">
-                              <Button size="lg" variant="outline" className="text-white border-white/50 hover:bg-white/10 backdrop-blur-sm font-semibold px-8 py-4 rounded-full transition-all duration-300">
+                              <Button size="lg" className="bg-transparent border-2 border-white/50 text-white hover:bg-white hover:text-gray-900 backdrop-blur-sm font-semibold px-8 py-4 rounded-full transition-all duration-300">
                                 Browse Categories
                               </Button>
                             </Link>
