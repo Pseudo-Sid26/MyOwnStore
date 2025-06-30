@@ -57,6 +57,19 @@ const productSchema = new mongoose.Schema({
     trim: true,
     uppercase: true
   }],
+  
+  // ✅ Dynamic attributes based on category
+  attributes: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  
+  // ✅ Category-specific fields
+  specifications: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  
   stock: {
     type: Number,
     required: [true, 'Stock quantity is required'],

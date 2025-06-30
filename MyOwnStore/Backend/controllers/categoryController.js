@@ -25,8 +25,8 @@ const getAllCategories = async (req, res) => {
     const categoriesWithCount = await Promise.all(
       categories.map(async (category) => {
         const productCount = await Product.countDocuments({ 
-          categoryId: category._id,
-          isActive: true 
+          categoryId: category._id
+          // Removed isActive filter since Product model doesn't have this field
         });
         
         return {
@@ -80,8 +80,8 @@ const getCategoryById = async (req, res) => {
 
     // Get product count for this category
     const productCount = await Product.countDocuments({ 
-      categoryId: category._id,
-      isActive: true 
+      categoryId: category._id
+      // Removed isActive filter since Product model doesn't have this field
     });
 
     const categoryWithCount = {
@@ -131,8 +131,8 @@ const getCategoryBySlug = async (req, res) => {
     }
 
     const productCount = await Product.countDocuments({ 
-      categoryId: category._id,
-      isActive: true 
+      categoryId: category._id
+      // Removed isActive filter since Product model doesn't have this field
     });
 
     const categoryWithCount = {
@@ -272,8 +272,8 @@ const updateCategory = async (req, res) => {
     await category.save();
 
     const productCount = await Product.countDocuments({ 
-      categoryId: category._id,
-      isActive: true 
+      categoryId: category._id
+      // Removed isActive filter since Product model doesn't have this field
     });
 
     res.json({
@@ -320,8 +320,8 @@ const deleteCategory = async (req, res) => {
 
     // Check if category has products
     const productCount = await Product.countDocuments({ 
-      categoryId: category._id,
-      isActive: true 
+      categoryId: category._id
+      // Removed isActive filter since Product model doesn't have this field
     });
 
     if (productCount > 0) {
