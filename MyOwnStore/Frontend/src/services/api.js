@@ -228,6 +228,7 @@ export const ordersAPI = {
   getById: (id) => api.get(`/orders/${id}`),
   create: (orderData) => api.post('/orders', orderData),
   updateStatus: (id, status) => api.put(`/orders/${id}/status`, { status }),
+  cancel: (id) => api.put(`/orders/${id}/cancel`),
   getStatistics: () => api.get('/orders/statistics'),
   track: (trackingNumber) => api.get(`/orders/track/${trackingNumber}`),
 }

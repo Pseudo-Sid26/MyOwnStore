@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Search, ShoppingCart, User, Menu, X, Heart } from 'lucide-react'
+import { Search, ShoppingCart, User, Menu, X, Heart, Package, LogOut, ChevronDown } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import { Button } from '../ui/Button'
 import { Badge } from '../ui/Badge'
@@ -12,8 +12,10 @@ const Header = () => {
   const [suggestions, setSuggestions] = useState([])
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [isSearchLoading, setIsSearchLoading] = useState(false)
+  const [showUserDropdown, setShowUserDropdown] = useState(false)
   const searchRef = useRef(null)
   const suggestionsRef = useRef(null)
+  const userDropdownRef = useRef(null)
   
   const { state, actions } = useApp()
   const navigate = useNavigate()
@@ -22,6 +24,18 @@ const Header = () => {
     actions.logout()
     navigate('/')
     setIsMenuOpen(false)
+    setShowUserDropdown(false)
+  }
+
+  // Get user initials for avatar
+  const getUserInitials = (name) => {
+    if (!name) return 'U'
+    return name
+      .split(' ')
+      .map(word => word.charAt(0))
+      .join('')
+      .toUpperCase()
+      .slice(0, 2)
   }
 
   // Handle search suggestions
@@ -88,7 +102,7 @@ const Header = () => {
     return () => clearTimeout(debounceTimer)
   }, [searchQuery])
 
-  // Handle click outside to close suggestions
+  // Handle click outside to close suggestions and dropdowns
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
@@ -98,6 +112,13 @@ const Header = () => {
         !suggestionsRef.current.contains(event.target)
       ) {
         setShowSuggestions(false)
+      }
+      
+      if (
+        userDropdownRef.current &&
+        !userDropdownRef.current.contains(event.target)
+      ) {
+        setShowUserDropdown(false)
       }
     }
 
@@ -282,22 +303,55 @@ const Header = () => {
 
             {/* User Menu */}
             {state.user ? (
-              <div className="flex items-center space-x-2">
-                <Link 
-                  to="/profile" 
-                  className="flex items-center space-x-2 p-2 text-gray-700 hover:text-primary-600 transition-colors"
+              <div className="relative" ref={userDropdownRef}>
+                <button
+                  onClick={() => setShowUserDropdown(!showUserDropdown)}
+                  className="flex items-center space-x-2 p-1 rounded-full hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
-                  <User className="h-5 w-5" />
-                  <span className="text-sm font-medium">{state.user.name}</span>
-                </Link>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={handleLogout}
-                  className="text-gray-700 hover:text-red-600"
-                >
-                  Logout
-                </Button>
+                  {/* User Avatar */}
+                  <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
+                    {getUserInitials(state.user.name)}
+                  </div>
+                  <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${showUserDropdown ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* User Dropdown Menu */}
+                {showUserDropdown && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50">
+                    <div className="px-4 py-2 border-b border-gray-100">
+                      <p className="text-sm font-medium text-gray-900">{state.user.name}</p>
+                      <p className="text-xs text-gray-500">{state.user.email}</p>
+                    </div>
+                    
+                    <Link
+                      to="/profile"
+                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                      onClick={() => setShowUserDropdown(false)}
+                    >
+                      <User className="h-4 w-4 mr-3" />
+                      View Profile
+                    </Link>
+                    
+                    <Link
+                      to="/orders"
+                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                      onClick={() => setShowUserDropdown(false)}
+                    >
+                      <Package className="h-4 w-4 mr-3" />
+                      My Orders
+                    </Link>
+                    
+                    <hr className="my-1" />
+                    
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      <LogOut className="h-4 w-4 mr-3" />
+                      Logout
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex items-center space-x-2">
@@ -409,18 +463,41 @@ const Header = () => {
               {/* Mobile User Menu */}
               {state.user ? (
                 <>
+                  <div className="px-3 py-2 border-b border-gray-200">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
+                        {getUserInitials(state.user.name)}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{state.user.name}</p>
+                        <p className="text-xs text-gray-500">{state.user.email}</p>
+                      </div>
+                    </div>
+                  </div>
+                  
                   <Link
                     to="/profile"
                     className="flex items-center px-3 py-2 text-gray-700 hover:text-primary-600 font-medium"
                     onClick={() => setIsMenuOpen(false)}
                   >
                     <User className="h-5 w-5 mr-2" />
-                    {state.user.name}
+                    View Profile
                   </Link>
+                  
+                  <Link
+                    to="/orders"
+                    className="flex items-center px-3 py-2 text-gray-700 hover:text-primary-600 font-medium"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <Package className="h-5 w-5 mr-2" />
+                    My Orders
+                  </Link>
+                  
                   <button
                     onClick={handleLogout}
-                    className="flex items-center w-full px-3 py-2 text-left text-gray-700 hover:text-red-600 font-medium"
+                    className="flex items-center w-full px-3 py-2 text-left text-red-600 hover:text-red-700 font-medium"
                   >
+                    <LogOut className="h-5 w-5 mr-2" />
                     Logout
                   </button>
                 </>

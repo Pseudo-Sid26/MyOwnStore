@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { 
   Package, 
   Clock, 
@@ -9,7 +9,8 @@ import {
   Eye,
   Calendar,
   Filter,
-  Search
+  Search,
+  X
 } from 'lucide-react'
 import { ordersAPI } from '../services/api'
 import { useApp } from '../store/AppContext'
@@ -18,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { Input } from '../components/ui/Input'
 import { LoadingSpinner } from '../components/ui/Loading'
+import OrderCancellationSuccessModal from '../components/ui/OrderCancellationSuccessModal'
 import { formatPrice } from '../lib/utils'
 
 const OrdersPage = () => {
@@ -28,7 +30,11 @@ const OrdersPage = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [cancellingOrders, setCancellingOrders] = useState(new Set())
+  const [showCancellationModal, setShowCancellationModal] = useState(false)
+  const [cancelledOrder, setCancelledOrder] = useState(null)
   const { state, actions } = useApp()
+  const navigate = useNavigate()
 
   const statusOptions = [
     { value: 'all', label: 'All Orders', icon: Package },
@@ -124,6 +130,72 @@ const OrdersPage = () => {
   const getStatusIcon = (status) => {
     const IconComponent = statusOptions.find(option => option.value === status)?.icon || Package
     return <IconComponent className="h-4 w-4" />
+  }
+
+  const handleCancelOrder = async (orderId, orderNumber) => {
+    // Confirm cancellation
+    if (!window.confirm(`Are you sure you want to cancel order #${orderNumber}? This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      setCancellingOrders(prev => new Set([...prev, orderId]))
+      
+      const response = await ordersAPI.cancel(orderId)
+      
+      if (response.data.success) {
+        // Find the cancelled order for the modal
+        const orderToCancel = orders.find(order => order._id === orderId)
+        
+        // Update the order in the local state
+        setOrders(prevOrders => 
+          prevOrders.map(order => 
+            order._id === orderId 
+              ? { ...order, status: 'cancelled', cancelledAt: new Date() }
+              : order
+          )
+        )
+        
+        // Show success modal instead of toast message
+        setCancelledOrder({
+          ...orderToCancel,
+          status: 'cancelled',
+          cancelledAt: new Date()
+        })
+        setShowCancellationModal(true)
+        
+        // Remove the success toast since we're showing a modal
+        // actions.setSuccess(`Order #${orderNumber} has been cancelled successfully`)
+      } else {
+        actions.setError(response.data.message || 'Failed to cancel order')
+      }
+    } catch (error) {
+      console.error('Error cancelling order:', error)
+      const errorMessage = error.response?.data?.message || 'Failed to cancel order'
+      actions.setError(errorMessage)
+    } finally {
+      setCancellingOrders(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(orderId)
+        return newSet
+      })
+    }
+  }
+
+  const handleCloseModal = () => {
+    setShowCancellationModal(false)
+    setCancelledOrder(null)
+  }
+
+  const handleViewOrders = () => {
+    handleCloseModal()
+    // Already on orders page, just refresh
+    fetchOrders()
+  }
+
+  const handleContinueShopping = () => {
+    handleCloseModal()
+    navigate('/products')
   }
 
   if (isLoading && orders.length === 0) {
@@ -327,8 +399,24 @@ const OrdersPage = () => {
                     </Button>
                     
                     {['pending', 'confirmed'].includes(order.status) && (
-                      <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">
-                        Cancel Order
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="text-red-600 hover:text-red-700"
+                        onClick={() => handleCancelOrder(order._id, order.orderNumber)}
+                        disabled={cancellingOrders.has(order._id)}
+                      >
+                        {cancellingOrders.has(order._id) ? (
+                          <>
+                            <LoadingSpinner size="sm" className="mr-2" />
+                            Cancelling...
+                          </>
+                        ) : (
+                          <>
+                            <X className="h-4 w-4 mr-2" />
+                            Cancel Order
+                          </>
+                        )}
                       </Button>
                     )}
                   </div>
@@ -377,6 +465,15 @@ const OrdersPage = () => {
           </div>
         )}
       </div>
+      
+      {/* Order Cancellation Success Modal */}
+      <OrderCancellationSuccessModal
+        isOpen={showCancellationModal}
+        onClose={handleCloseModal}
+        order={cancelledOrder}
+        onViewOrders={handleViewOrders}
+        onContinueShopping={handleContinueShopping}
+      />
     </div>
   )
 }
