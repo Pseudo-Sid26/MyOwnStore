@@ -88,14 +88,24 @@ const SearchPage = () => {
       }
 
       const response = await productsAPI.search(queryParams)
-      setProducts(response.data.products || [])
-      setTotalProducts(response.data.total || 0)
-      setTotalPages(response.data.totalPages || 1)
-      setCurrentPage(parseInt(searchParams.get('page')) || 1)
+      
+      // Handle the backend response format
+      if (response.data.success) {
+        const { products, pagination } = response.data.data
+        setProducts(products || [])
+        setTotalProducts(pagination?.totalProducts || 0)
+        setTotalPages(pagination?.totalPages || 1)
+        setCurrentPage(pagination?.currentPage || 1)
+      } else {
+        throw new Error(response.data.message || 'Search failed')
+      }
       
     } catch (error) {
       console.error('Search error:', error)
       actions.setError('Failed to search products')
+      setProducts([])
+      setTotalProducts(0)
+      setTotalPages(1)
     } finally {
       setIsLoading(false)
     }
@@ -126,8 +136,25 @@ const SearchPage = () => {
     }
 
     try {
-      const response = await productsAPI.getSuggestions(query)
-      setSuggestions(response.data.suggestions || [])
+      const response = await productsAPI.getSearchSuggestions(query)
+      const suggestionData = response.data?.data?.suggestions || {}
+      const allSuggestions = []
+      
+      // Flatten all suggestion types into a simple array
+      if (suggestionData.products) {
+        allSuggestions.push(...suggestionData.products.map(item => item.value))
+      }
+      if (suggestionData.brands) {
+        allSuggestions.push(...suggestionData.brands.map(item => item.value))
+      }
+      if (suggestionData.categories) {
+        allSuggestions.push(...suggestionData.categories.map(item => item.value))
+      }
+      if (suggestionData.tags) {
+        allSuggestions.push(...suggestionData.tags.map(item => item.value))
+      }
+      
+      setSuggestions([...new Set(allSuggestions)]) // Remove duplicates
     } catch (error) {
       console.error('Suggestions error:', error)
       setSuggestions([])
@@ -504,9 +531,12 @@ const SearchPage = () => {
                       <Link to={`/products/${product._id}`}>
                         <div className="aspect-square overflow-hidden rounded-t-lg">
                           <img
-                            src={product.images?.[0] || '/placeholder-product.jpg'}
-                            alt={product.name}
+                            src={product.images?.[0] || product.image || 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400&h=400&fit=crop'}
+                            alt={product.title || product.name}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            onError={(e) => {
+                              e.target.src = 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400&h=400&fit=crop'
+                            }}
                           />
                         </div>
                       </Link>
@@ -514,7 +544,7 @@ const SearchPage = () => {
                         <div className="space-y-2">
                           <Link to={`/products/${product._id}`}>
                             <h3 className="font-semibold text-gray-900 hover:text-primary-600 transition-colors">
-                              {product.name}
+                              {product.title || product.name}
                             </h3>
                           </Link>
                           <div className="flex items-center space-x-2">
@@ -532,7 +562,7 @@ const SearchPage = () => {
                             <span className="text-lg font-bold text-gray-900">
                               {formatPrice(product.price)}
                             </span>
-                            {product.inventory <= 0 && (
+                            {(product.inventory <= 0 || product.stock <= 0) && (
                               <Badge variant="destructive">Out of Stock</Badge>
                             )}
                           </div>
@@ -542,7 +572,7 @@ const SearchPage = () => {
                         <Button
                           className="flex-1"
                           onClick={() => actions.addToCart(product)}
-                          disabled={product.inventory <= 0}
+                          disabled={product.inventory <= 0 || product.stock <= 0}
                         >
                           <ShoppingCart className="h-4 w-4 mr-2" />
                           Add to Cart
@@ -552,10 +582,11 @@ const SearchPage = () => {
                           size="icon"
                           onClick={() => {
                             const wasAdded = actions.toggleWishlist(product)
+                            const productName = product.title || product.name
                             if (wasAdded) {
-                              actions.setSuccess(`${product.name || product.title} added to wishlist!`)
+                              actions.setSuccess(`${productName} added to wishlist!`)
                             } else {
-                              actions.setSuccess(`${product.name || product.title} removed from wishlist!`)
+                              actions.setSuccess(`${productName} removed from wishlist!`)
                             }
                           }}
                           className={actions.isInWishlist(product._id) ? "text-red-600 hover:text-red-700" : ""}

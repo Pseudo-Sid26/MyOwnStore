@@ -489,7 +489,8 @@ const searchProducts = async (req, res) => {
       maxPrice,
       brand,
       rating,
-      inStock
+      inStock,
+      sort = '-rating'
     } = req.query;
 
     if (!query || query.trim().length < 2) {
@@ -522,9 +523,39 @@ const searchProducts = async (req, res) => {
 
     const skip = (page - 1) * limit;
 
+    // Handle sorting
+    let sortObj = {};
+    switch(sort) {
+      case 'relevance':
+        sortObj = { rating: -1, createdAt: -1 };
+        break;
+      case 'price':
+        sortObj = { price: 1 };
+        break;
+      case '-price':
+        sortObj = { price: -1 };
+        break;
+      case 'title':
+      case 'name':
+        sortObj = { title: 1 };
+        break;
+      case '-title':
+      case '-name':
+        sortObj = { title: -1 };
+        break;
+      case '-rating':
+        sortObj = { rating: -1 };
+        break;
+      case '-createdAt':
+        sortObj = { createdAt: -1 };
+        break;
+      default:
+        sortObj = { rating: -1, createdAt: -1 };
+    }
+
     const products = await Product.find(filter)
       .populate('categoryId', 'name slug')
-      .sort({ rating: -1, createdAt: -1 })
+      .sort(sortObj)
       .skip(skip)
       .limit(Number(limit));
 
