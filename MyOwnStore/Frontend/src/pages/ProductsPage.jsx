@@ -181,12 +181,8 @@ const ProductsPage = () => {
           stock: product.stock
         }
         
-        actions.addToCart(productData, 1)
-        
-        // If user is logged in, sync with backend
-        if (state.user) {
-          await cartAPI.addItem(product._id, 1)
-        }
+        // AppContext now handles backend sync automatically
+        await actions.addToCart(productData, 1)
         
         actions.setSuccess(`${product.title} added to cart!`)
       } catch (error) {

@@ -47,8 +47,11 @@ const LoginPage = () => {
         localStorage.setItem('token', token) // Don't stringify token
         localStorage.setItem('user', JSON.stringify(user))
 
-        // Use the login action
-        actions.login(user, token)
+        // Use the login action (now async) and wait for cart sync
+        console.log('🔄 Starting login process with cart sync...')
+        await actions.login(user, token)
+        console.log('✅ Login process completed, including cart sync')
+        
         actions.setSuccess('Login successful!')
         navigate('/')
       } else {

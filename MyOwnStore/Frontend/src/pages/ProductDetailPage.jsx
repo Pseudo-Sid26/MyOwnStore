@@ -105,12 +105,8 @@ const ProductDetailPage = () => {
         selectedColor: selectedColor
       }
 
-      actions.addToCart(productData, quantity)
-      
-      // If user is logged in, sync with backend
-      if (state.user) {
-        await cartAPI.addItem(product._id, quantity)
-      }
+      // AppContext now handles backend sync automatically
+      await actions.addToCart(productData, quantity)
       
       actions.setSuccess(`${product.title} added to cart!`)
 

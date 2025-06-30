@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react'
 import { getStorageItem, setStorageItem, removeStorageItem } from '../lib/utils'
+import { cartAPI, wishlistAPI } from '../services/api'
 
 // Initial state
 const initialState = {
@@ -240,11 +241,156 @@ export function AppProvider({ children }) {
     }
   }, [state.theme])
 
+  // Cart synchronization function
+  const syncCartWithBackend = async (token) => {
+    try {
+      console.log('🔄 Syncing cart with backend...')
+      console.log('   Token:', token ? 'Present' : 'Missing')
+      
+      // Set the token temporarily for the API call
+      const originalToken = localStorage.getItem('token')
+      localStorage.setItem('token', token)
+      
+      // Fetch user's cart from backend
+      console.log('📡 Fetching cart from backend...')
+      const response = await cartAPI.get()
+      console.log('📦 Backend response:', response.data)
+      
+      const backendCart = response.data?.data?.cart?.items || []
+      
+      console.log('📦 Backend cart items:', backendCart.length)
+      
+      // Get current local cart
+      const localCart = getStorageItem('cart', [])
+      console.log('🏠 Local cart items:', localCart.length)
+      
+      // Convert backend cart to frontend format
+      const formattedBackendCart = backendCart.map(item => ({
+        productId: item.productId._id,
+        name: item.productId.title,
+        price: item.price,
+        image: item.productId.images?.[0] || '',
+        quantity: item.quantity,
+        stock: item.productId.stock,
+        selectedSize: item.size,
+        selectedColor: item.color
+      }))
+      
+      console.log('🔄 Formatted backend cart:', formattedBackendCart.length, 'items')
+      
+      // Merge carts: prioritize backend cart, but add any local items not in backend
+      const mergedCart = [...formattedBackendCart]
+      
+      for (const localItem of localCart) {
+        const existsInBackend = formattedBackendCart.find(
+          backendItem => backendItem.productId === localItem.productId
+        )
+        
+        if (!existsInBackend) {
+          // Add local item to backend
+          try {
+            const quantityToSync = Math.min(localItem.quantity, 10)
+            console.log(`📤 Adding local item to backend: ${localItem.name}`)
+            await cartAPI.addItem(localItem.productId, quantityToSync)
+            
+            mergedCart.push({
+              ...localItem,
+              quantity: quantityToSync
+            })
+            
+            console.log(`➕ Added local item to backend: ${localItem.name}`)
+          } catch (error) {
+            console.error('❌ Error syncing local cart item to backend:', error)
+          }
+        }
+      }
+      
+      console.log('🔗 Final merged cart:', mergedCart.length, 'items')
+      
+      // Update the cart in state
+      dispatch({
+        type: actionTypes.SET_CART,
+        payload: mergedCart
+      })
+      
+      // Restore original token if it was different
+      if (originalToken !== token) {
+        localStorage.setItem('token', originalToken)
+      }
+      
+      console.log('✅ Cart synchronized successfully:', mergedCart.length, 'items')
+      
+    } catch (error) {
+      console.error('❌ Error syncing cart with backend:', error)
+      console.error('   Error details:', error.response?.data)
+      // If sync fails, keep local cart as fallback
+    }
+  }
+
+  // Wishlist synchronization function  
+  const syncWishlistWithBackend = async (token) => {
+    try {
+      console.log('🔄 Syncing wishlist with backend...')
+      
+      // Set the token temporarily for the API call
+      const originalToken = localStorage.getItem('token')
+      localStorage.setItem('token', token)
+      
+      // Fetch user's wishlist from backend
+      const response = await wishlistAPI.get()
+      const backendWishlist = response.data?.wishlist || []
+      
+      // Update the wishlist in state
+      dispatch({
+        type: actionTypes.SET_WISHLIST,
+        payload: backendWishlist
+      })
+      
+      // Restore original token if it was different
+      if (originalToken !== token) {
+        localStorage.setItem('token', originalToken)
+      }
+      
+      console.log('✅ Wishlist synchronized successfully:', backendWishlist.length, 'items')
+      
+    } catch (error) {
+      console.error('❌ Error syncing wishlist with backend:', error)
+      // If sync fails, keep local wishlist as fallback
+    }
+  }
+
+  // Sync with backend on app initialization for authenticated users
+  useEffect(() => {
+    const initializeUserData = async () => {
+      if (state.isAuthenticated && state.token && state.user) {
+        try {
+          console.log('🚀 App load: Initializing user data sync...')
+          console.log('   User:', state.user.name || state.user.email)
+          console.log('   Token:', state.token ? 'Present' : 'Missing')
+          
+          await syncCartWithBackend(state.token)
+          await syncWishlistWithBackend(state.token)
+          
+          console.log('✅ App load: User data sync completed')
+        } catch (error) {
+          console.error('❌ App load: Error syncing user data:', error)
+        }
+      } else {
+        console.log('ℹ️  App load: User not authenticated, skipping sync')
+      }
+    }
+
+    // Only run when authentication state becomes true (avoid infinite loops)
+    if (state.isAuthenticated) {
+      initializeUserData()
+    }
+  }, [state.isAuthenticated])
+
   // Action creators
   const actions = {
     // Login action - sets both user and token
-    login: (user, token) => {
-      console.log('AppContext login called with:', { user, token })
+    login: async (user, token) => {
+      console.log('🔐 AppContext login called with:', { user, token })
 
       // Store in localStorage immediately
       if (token) {
@@ -258,6 +404,18 @@ export function AppProvider({ children }) {
         type: actionTypes.SET_USER,
         payload: { user, token },
       })
+      
+      // Sync cart and wishlist with backend after login
+      if (token) {
+        try {
+          console.log('🔄 Syncing user data after login...')
+          await syncCartWithBackend(token)
+          await syncWishlistWithBackend(token)
+          console.log('✅ User data sync completed')
+        } catch (error) {
+          console.error('❌ Error syncing data after login:', error)
+        }
+      }
     },
 
     // Set user - can be used for login or user updates
@@ -317,14 +475,16 @@ export function AppProvider({ children }) {
       dispatch({ type: actionTypes.CLEAR_MESSAGES })
     },
 
-    addToCart: (product, quantity = 1) => {
+    addToCart: async (product, quantity = 1) => {
       console.log('Adding to cart:', {
         productId: product._id,
         name: product.name || product.title,
         price: product.price,
-        quantity
+        quantity,
+        isAuthenticated: state.isAuthenticated
       })
       
+      // Update local state first
       dispatch({
         type: actionTypes.ADD_TO_CART,
         payload: {
@@ -338,31 +498,112 @@ export function AppProvider({ children }) {
           selectedColor: product.selectedColor,
         },
       })
+      
+      // Sync with backend if user is logged in
+      if (state.isAuthenticated && state.token) {
+        try {
+          const cartData = {
+            productId: product._id,
+            quantity,
+            ...(product.selectedSize && { size: product.selectedSize })
+          }
+          
+          console.log('Syncing cart item to backend:', cartData)
+          await cartAPI.addItem(cartData.productId, cartData.quantity, cartData.size)
+          console.log('✅ Cart item synced to backend successfully')
+        } catch (error) {
+          console.error('❌ Error syncing cart item to backend:', error)
+          
+          // Handle specific quantity validation errors
+          if (error.response?.data?.message?.includes('Maximum quantity')) {
+            dispatch({
+              type: actionTypes.SET_ERROR,
+              payload: error.response.data.message
+            })
+            
+            // Optionally revert the local state change
+            // For now, we'll keep the local change but show the error
+          } else {
+            dispatch({
+              type: actionTypes.SET_ERROR,
+              payload: 'Failed to sync cart with server. Item added locally.'
+            })
+          }
+        }
+      }
     },
 
-    updateCartItem: (productId, quantity) => {
+    updateCartItem: async (productId, quantity) => {
       if (quantity <= 0) {
         dispatch({
           type: actionTypes.REMOVE_FROM_CART,
           payload: productId,
         })
+        
+        // Sync removal with backend
+        if (state.isAuthenticated && state.token) {
+          try {
+            await cartAPI.removeItem(productId)
+            console.log('✅ Cart item removed from backend')
+          } catch (error) {
+            console.error('❌ Error removing cart item from backend:', error)
+          }
+        }
       } else {
         dispatch({
           type: actionTypes.UPDATE_CART_ITEM,
           payload: { productId, quantity },
         })
+        
+        // Sync update with backend
+        if (state.isAuthenticated && state.token) {
+          try {
+            await cartAPI.updateItem(productId, quantity)
+            console.log('✅ Cart item quantity updated in backend')
+          } catch (error) {
+            console.error('❌ Error updating cart item in backend:', error)
+            
+            // Handle specific quantity validation errors
+            if (error.response?.data?.message?.includes('Maximum quantity')) {
+              dispatch({
+                type: actionTypes.SET_ERROR,
+                payload: error.response.data.message
+              })
+            }
+          }
+        }
       }
     },
 
-    removeFromCart: (productId) => {
+    removeFromCart: async (productId) => {
       dispatch({
         type: actionTypes.REMOVE_FROM_CART,
         payload: productId,
       })
+      
+      // Sync removal with backend
+      if (state.isAuthenticated && state.token) {
+        try {
+          await cartAPI.removeItem(productId)
+          console.log('✅ Cart item removed from backend')
+        } catch (error) {
+          console.error('❌ Error removing cart item from backend:', error)
+        }
+      }
     },
 
-    clearCart: () => {
+    clearCart: async () => {
       dispatch({ type: actionTypes.CLEAR_CART })
+      
+      // Sync clear with backend
+      if (state.isAuthenticated && state.token) {
+        try {
+          await cartAPI.clear()
+          console.log('✅ Cart cleared in backend')
+        } catch (error) {
+          console.error('❌ Error clearing cart in backend:', error)
+        }
+      }
     },
 
     setCart: (cart) => {

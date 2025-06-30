@@ -66,12 +66,8 @@ const CartPage = () => {
     }
 
     try {
-      actions.updateCartItem(productId, newQuantity)
-      
-      // If user is logged in, sync with backend
-      if (user) {
-        await cartAPI.updateItem(productId, newQuantity)
-      }
+      // The context action now handles backend sync automatically
+      await actions.updateCartItem(productId, newQuantity)
     } catch (error) {
       console.error('Error updating cart:', error)
       actions.setError('Failed to update cart')
@@ -86,12 +82,8 @@ const CartPage = () => {
 
   const removeItem = async (productId) => {
     try {
-      actions.removeFromCart(productId)
-      
-      // If user is logged in, sync with backend
-      if (user) {
-        await cartAPI.removeItem(productId)
-      }
+      // The context action now handles backend sync automatically
+      await actions.removeFromCart(productId)
       
       actions.setSuccess('Item removed from cart')
     } catch (error) {
@@ -114,12 +106,8 @@ const CartPage = () => {
       // Add to wishlist
       actions.addToWishlist(product)
       
-      // Remove from cart
-      actions.removeFromCart(item.productId)
-      
-      if (user) {
-        await cartAPI.removeItem(item.productId)
-      }
+      // Remove from cart (this now handles backend sync automatically)
+      await actions.removeFromCart(item.productId)
       
       actions.setSuccess(`${item.name} moved to wishlist`)
     } catch (error) {
@@ -175,11 +163,8 @@ const CartPage = () => {
     if (!window.confirm('Are you sure you want to clear your cart?')) return
     
     try {
-      actions.clearCart()
-      
-      if (user) {
-        await cartAPI.clear()
-      }
+      // The context action now handles backend sync automatically
+      await actions.clearCart()
       
       actions.setSuccess('Cart cleared')
     } catch (error) {

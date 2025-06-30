@@ -210,7 +210,11 @@ export const categoriesAPI = {
 // Cart API
 export const cartAPI = {
   get: () => api.get('/cart'),
-  addItem: (productId, quantity) => api.post('/cart/add', { productId, quantity }),
+  addItem: (productId, quantity, size) => {
+    const data = { productId, quantity }
+    if (size) data.size = size
+    return api.post('/cart/add', data)
+  },
   updateItem: (productId, quantity) => api.put('/cart/update', { productId, quantity }),
   removeItem: (productId) => api.delete(`/cart/remove/${productId}`),
   clear: () => api.delete('/cart/clear'),
