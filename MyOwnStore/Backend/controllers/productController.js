@@ -736,11 +736,11 @@ const getProductRecommendations = async (req, res) => {
 module.exports = {
   getAllProducts,
   getProductById,
-  createProduct,          // ✅ Added back
-  updateProduct,          // ✅ Added back  
-  deleteProduct,          // ✅ Added back
+  createProduct,          
+  updateProduct,  
+  deleteProduct,     
   getProductsByCategory,
-  updateProductStock,     // ✅ Added back
+  updateProductStock,    
   searchProducts,
   getSearchSuggestions,
   getProductRecommendations
