@@ -213,16 +213,36 @@ const CheckoutPage = () => {
 
     try {
       setIsProcessing(true)
+      console.log('📤 Submitting order:', orderData)
+      
       const response = await ordersAPI.create(orderData)
+      console.log('📥 Order response:', response.data)
       
       if (response.data.success) {
-        actions.clearCart()
-        actions.setSuccess('Order placed successfully!')
-        navigate(`/orders/${response.data.order._id}`)
+        const order = response.data.data.order
+        
+        // Clear cart both locally and sync with backend
+        await actions.clearCart()
+        
+        // Double-check by loading cart from backend to ensure it's empty
+        if (state.isAuthenticated) {
+          await actions.loadCart()
+        }
+        
+        console.log('✅ Cart cleared and verified after order placement')
+        actions.setSuccess(`Order #${order.orderNumber} placed successfully! Redirecting to your orders...`)
+        
+        // Small delay to show the success message, then navigate to orders page
+        setTimeout(() => {
+          navigate('/orders')
+        }, 1500)
+      } else {
+        actions.setError(response.data.message || 'Failed to place order')
       }
     } catch (error) {
       console.error('Order submission error:', error)
-      actions.setError(error.response?.data?.message || 'Failed to place order')
+      const errorMessage = error.response?.data?.message || 'Failed to place order'
+      actions.setError(errorMessage)
     } finally {
       setIsProcessing(false)
     }
@@ -592,9 +612,9 @@ const CheckoutPage = () => {
                   <CardContent>
                     <div className="space-y-4">
                       {state.cart.map((item) => (
-                        <div key={`${item._id}-${item.selectedSize}-${item.selectedColor}`} className="flex items-center space-x-4">
+                        <div key={`${item.productId}-${item.selectedSize}-${item.selectedColor}`} className="flex items-center space-x-4">
                           <img
-                            src={item.images?.[0] || '/placeholder-product.jpg'}
+                            src={item.image || '/placeholder-product.jpg'}
                             alt={item.name}
                             className="w-16 h-16 object-cover rounded-md"
                           />
@@ -661,7 +681,7 @@ const CheckoutPage = () => {
               <CardContent className="space-y-4">
                 <div className="space-y-3">
                   {state.cart.map((item) => (
-                    <div key={`${item._id}-${item.selectedSize}-${item.selectedColor}`} className="flex justify-between text-sm">
+                    <div key={`${item.productId}-${item.selectedSize}-${item.selectedColor}`} className="flex justify-between text-sm">
                       <span className="text-gray-600">
                         {item.name} × {item.quantity}
                       </span>

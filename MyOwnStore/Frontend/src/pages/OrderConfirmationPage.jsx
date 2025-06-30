@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom'
 import { 
   CheckCircle, 
   Package, 
@@ -22,21 +22,35 @@ import { formatPrice } from '../lib/utils'
 const OrderConfirmationPage = () => {
   const { orderId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const [order, setOrder] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const { actions } = useApp()
 
+  // Check if this is order details page (not confirmation)
+  const isOrderDetails = location.pathname.startsWith('/order-details')
+
   useEffect(() => {
     const fetchOrder = async () => {
-      if (!orderId) {
+      // Check if orderId is passed via URL params or query params
+      const urlParams = new URLSearchParams(window.location.search)
+      const queryOrderId = urlParams.get('orderId')
+      const finalOrderId = orderId || queryOrderId
+      
+      if (!finalOrderId) {
         navigate('/orders')
         return
       }
 
       try {
         setIsLoading(true)
-        const response = await ordersAPI.getById(orderId)
-        setOrder(response.data.order)
+        const response = await ordersAPI.getById(finalOrderId)
+        
+        if (response.data?.success && response.data?.data?.order) {
+          setOrder(response.data.data.order)
+        } else {
+          throw new Error('Order not found')
+        }
       } catch (error) {
         console.error('Error fetching order:', error)
         actions.setError('Failed to load order details')
@@ -108,12 +122,19 @@ const OrderConfirmationPage = () => {
       <div className="max-w-4xl mx-auto">
         {/* Success Header */}
         <div className="text-center mb-8">
-          <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
-            <CheckCircle className="h-8 w-8 text-green-600" />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Order Confirmed!</h1>
+          {!isOrderDetails && (
+            <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
+              <CheckCircle className="h-8 w-8 text-green-600" />
+            </div>
+          )}
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            {isOrderDetails ? 'Order Details' : 'Order Confirmed!'}
+          </h1>
           <p className="text-lg text-gray-600 mb-4">
-            Thank you for your order. We've received your order and will begin processing it soon.
+            {isOrderDetails 
+              ? 'View and manage your order details below.'
+              : 'Thank you for your order. We\'ve received your order and will begin processing it soon.'
+            }
           </p>
           <div className="flex items-center justify-center space-x-4 text-sm text-gray-600">
             <span>Order Number: <strong>#{order.orderNumber}</strong></span>
@@ -160,13 +181,13 @@ const OrderConfirmationPage = () => {
                   {order.items.map((item) => (
                     <div key={item._id} className="flex items-center space-x-4 py-4 border-b border-gray-200 last:border-b-0">
                       <img
-                        src={item.product?.images?.[0] || '/placeholder-product.jpg'}
-                        alt={item.product?.name || 'Product'}
+                        src={item.productId?.images?.[0] || '/placeholder-product.jpg'}
+                        alt={item.title || 'Product'}
                         className="w-16 h-16 object-cover rounded-md"
                       />
                       <div className="flex-1">
                         <h4 className="font-medium text-gray-900">
-                          {item.product?.name || 'Product'}
+                          {item.title || 'Product'}
                         </h4>
                         <div className="text-sm text-gray-600">
                           {item.size && <span>Size: {item.size}</span>}
@@ -176,7 +197,7 @@ const OrderConfirmationPage = () => {
                       </div>
                       <div className="text-right">
                         <p className="font-medium text-gray-900">
-                          {formatPrice(item.price * item.quantity)}
+                          {formatPrice(item.totalPrice || (item.price * item.quantity))}
                         </p>
                         <p className="text-sm text-gray-600">
                           {formatPrice(item.price)} each
@@ -259,26 +280,18 @@ const OrderConfirmationPage = () => {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Subtotal</span>
-                    <span>{formatPrice(order.subtotal)}</span>
+                    <span>{formatPrice(order.pricing?.subtotal || 0)}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Shipping</span>
-                    <span>{formatPrice(order.shippingCost)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Tax</span>
-                    <span>{formatPrice(order.tax)}</span>
-                  </div>
-                  {order.discount > 0 && (
+                  {order.pricing?.discountAmount > 0 && (
                     <div className="flex justify-between text-sm text-green-600">
                       <span>Discount</span>
-                      <span>-{formatPrice(order.discount)}</span>
+                      <span>-{formatPrice(order.pricing.discountAmount)}</span>
                     </div>
                   )}
                   <div className="border-t pt-2">
                     <div className="flex justify-between font-semibold">
                       <span>Total</span>
-                      <span className="text-lg">{formatPrice(order.total)}</span>
+                      <span className="text-lg">{formatPrice(order.pricing?.total || 0)}</span>
                     </div>
                   </div>
                 </div>
