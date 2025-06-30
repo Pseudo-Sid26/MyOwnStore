@@ -680,8 +680,10 @@ const HomePage = () => {
                 </Button>
               </Link>
               <Link to="/products">
-                <Button size="lg" variant="outline" className="w-full sm:w-auto text-white border-2 border-white/50 hover:bg-white/10 backdrop-blur-sm font-bold px-10 py-5 rounded-full transition-all duration-300 text-lg">
+                <Button size="lg" variant="outline" className="w-full sm:w-auto bg-white/30 text-white border-2 border-white/80 hover:bg-white hover:text-blue-600 backdrop-blur-sm font-bold px-10 py-5 rounded-full transition-all duration-300 text-lg shadow-lg hover:shadow-xl transform hover:scale-105">
+                  <Eye className="mr-3 h-6 w-6" />
                   Continue as Guest
+                  <ArrowRight className="ml-3 h-6 w-6" />
                 </Button>
               </Link>
             </div>
