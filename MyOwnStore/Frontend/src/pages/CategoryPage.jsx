@@ -56,26 +56,29 @@ const CategoryPage = () => {
 
   const filteredAndSortedProducts = products
     .filter(product => {
+      // Ensure product exists
+      if (!product) return false
+
       // Search filter
-      if (searchQuery && !product.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+      if (searchQuery && !(product.title || '').toLowerCase().includes(searchQuery.toLowerCase())) {
         return false
       }
 
       // Price filter
-      if (filterBy.minPrice && product.price < parseFloat(filterBy.minPrice)) {
+      if (filterBy.minPrice && (product.price || 0) < parseFloat(filterBy.minPrice)) {
         return false
       }
-      if (filterBy.maxPrice && product.price > parseFloat(filterBy.maxPrice)) {
+      if (filterBy.maxPrice && (product.price || 0) > parseFloat(filterBy.maxPrice)) {
         return false
       }
 
       // Rating filter
-      if (filterBy.rating && product.rating < parseFloat(filterBy.rating)) {
+      if (filterBy.rating && (product.rating || 0) < parseFloat(filterBy.rating)) {
         return false
       }
 
       // Stock filter
-      if (filterBy.inStock && product.stock <= 0) {
+      if (filterBy.inStock && (product.stock || 0) <= 0) {
         return false
       }
 
@@ -84,22 +87,22 @@ const CategoryPage = () => {
     .sort((a, b) => {
       switch (sortBy) {
         case 'price-low':
-          return a.price - b.price
+          return (a.price || 0) - (b.price || 0)
         case 'price-high':
-          return b.price - a.price
+          return (b.price || 0) - (a.price || 0)
         case 'rating':
           return (b.rating || 0) - (a.rating || 0)
         case 'newest':
           return new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
         default:
-          return a.name.localeCompare(b.name)
+          return (a.title || '').localeCompare(b.title || '')
       }
     })
 
   const addToCart = async (product) => {
     try {
       await actions.addToCart(product._id, 1)
-      actions.setSuccess(`${product.name} added to cart!`)
+      actions.setSuccess(`${product.title || 'Product'} added to cart!`)
     } catch (error) {
       actions.setError('Failed to add item to cart')
     }
@@ -110,17 +113,17 @@ const CategoryPage = () => {
       <CardContent className="p-0">
         <div className="relative overflow-hidden rounded-t-lg bg-gradient-to-br from-gray-50 to-gray-100">
           <img
-            src={product.image || '/api/placeholder/300/200'}
-            alt={product.name}
+            src={(product.images && product.images[0]) || product.image || '/api/placeholder/300/200'}
+            alt={product.title || 'Product'}
             className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-700"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          {product.stock <= 5 && product.stock > 0 && (
+          {(product.stock || 0) <= 5 && (product.stock || 0) > 0 && (
             <Badge className="absolute top-2 left-2 bg-orange-500 text-white animate-pulse">
               Low Stock
             </Badge>
           )}
-          {product.stock === 0 && (
+          {(product.stock || 0) === 0 && (
             <Badge className="absolute top-2 left-2 bg-red-500 text-white">
               Out of Stock
             </Badge>
@@ -128,17 +131,17 @@ const CategoryPage = () => {
         </div>
         <div className="p-4">
           <h3 className="font-semibold text-lg mb-2 text-gray-800 group-hover:text-blue-600 transition-colors duration-300">
-            {product.name}
+            {product.title || 'Unnamed Product'}
           </h3>
           <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-            {product.description}
+            {product.description || 'No description available'}
           </p>
           {product.attributes && (
             <ProductAttributes attributes={product.attributes} className="mb-3" />
           )}
           <div className="flex items-center justify-between mb-3">
             <span className="text-2xl font-bold text-blue-600 group-hover:text-blue-700 transition-colors duration-300">
-              {formatPrice(product.price)}
+              {formatPrice(product.price || 0)}
             </span>
             {product.rating && (
               <div className="flex items-center space-x-1">
@@ -161,7 +164,7 @@ const CategoryPage = () => {
         </Button>
         <Button
           onClick={() => addToCart(product)}
-          disabled={product.stock === 0}
+          disabled={(product.stock || 0) === 0}
           className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white transform hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
         >
           <ShoppingCart className="w-4 h-4 mr-2" />

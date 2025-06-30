@@ -440,11 +440,11 @@ const GuestCheckoutPage = () => {
                   <div key={item.product._id} className="flex items-center gap-3">
                     <img
                       src={item.product.images?.[0] || '/api/placeholder/60/60'}
-                      alt={item.product.name}
+                      alt={item.product.title || 'Product'}
                       className="w-12 h-12 object-cover rounded"
                     />
                     <div className="flex-1">
-                      <h4 className="text-sm font-medium">{item.product.name}</h4>
+                      <h4 className="text-sm font-medium">{item.product.title || 'Unnamed Product'}</h4>
                       <p className="text-sm text-gray-600">
                         ${(item.product.salePrice || item.product.price).toFixed(2)} × {item.quantity}
                       </p>
