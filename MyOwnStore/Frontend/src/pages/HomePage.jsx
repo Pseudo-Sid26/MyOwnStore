@@ -349,39 +349,45 @@ const HomePage = () => {
           </div>
 
           <div className="flex justify-center items-center">
-            <div className="w-full max-w-6xl mx-auto">
-              <div className="flex flex-wrap justify-center items-center gap-6">
-                {categories.slice(0, 12).map((category, index) => (
+            <div className="w-full max-w-7xl mx-auto">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                {categories.slice(0, 10).map((category, index) => (
                   <Link
                     key={category._id}
                     to={`/categories/${category._id}`}
-                    className="group flex-shrink-0"
+                    className="group"
                   >
-                    <Card className="text-center p-6 hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-3 border-0 bg-gradient-to-br from-white to-gray-50 hover:from-blue-50 hover:to-purple-50 overflow-hidden relative w-[180px]">
-                      {/* Background decoration */}
-                      <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full -translate-y-10 translate-x-10 group-hover:scale-150 transition-transform duration-500 opacity-20"></div>
+                    <Card className="text-center p-6 hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-4 hover:scale-105 border-0 bg-gradient-to-br from-white via-gray-50 to-slate-50 hover:from-blue-50 hover:via-purple-50 hover:to-pink-50 overflow-hidden relative min-h-[220px] group-hover:ring-2 group-hover:ring-blue-200 group-hover:ring-opacity-50">
+                      {/* Enhanced background decorations */}
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full -translate-y-12 translate-x-12 group-hover:scale-150 transition-all duration-700 opacity-20 group-hover:opacity-40"></div>
+                      <div className="absolute bottom-0 left-0 w-16 h-16 bg-gradient-to-br from-purple-100 to-pink-100 rounded-full translate-y-8 -translate-x-8 group-hover:scale-125 transition-all duration-500 opacity-15 group-hover:opacity-30"></div>
                       
-                      <CardContent className="relative z-10 space-y-4">
-                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto group-hover:scale-110 transition-all duration-300 shadow-lg ${
-                          index % 6 === 0 ? 'bg-gradient-to-br from-blue-500 to-blue-600' :
-                          index % 6 === 1 ? 'bg-gradient-to-br from-purple-500 to-purple-600' :
-                          index % 6 === 2 ? 'bg-gradient-to-br from-green-500 to-green-600' :
-                          index % 6 === 3 ? 'bg-gradient-to-br from-orange-500 to-orange-600' :
-                          index % 6 === 4 ? 'bg-gradient-to-br from-pink-500 to-pink-600' :
-                          'bg-gradient-to-br from-indigo-500 to-indigo-600'
+                      {/* Animated shimmer effect */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-20 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-all duration-1000"></div>
+                      
+                      <CardContent className="relative z-10 space-y-4 flex flex-col items-center justify-center h-full">
+                        <div className={`w-18 h-18 rounded-2xl flex items-center justify-center mx-auto group-hover:scale-125 group-hover:rotate-3 transition-all duration-500 shadow-lg group-hover:shadow-2xl ${
+                          index % 6 === 0 ? 'bg-gradient-to-br from-blue-500 to-blue-600 group-hover:from-blue-400 group-hover:to-blue-700' :
+                          index % 6 === 1 ? 'bg-gradient-to-br from-purple-500 to-purple-600 group-hover:from-purple-400 group-hover:to-purple-700' :
+                          index % 6 === 2 ? 'bg-gradient-to-br from-green-500 to-green-600 group-hover:from-green-400 group-hover:to-green-700' :
+                          index % 6 === 3 ? 'bg-gradient-to-br from-orange-500 to-orange-600 group-hover:from-orange-400 group-hover:to-orange-700' :
+                          index % 6 === 4 ? 'bg-gradient-to-br from-pink-500 to-pink-600 group-hover:from-pink-400 group-hover:to-pink-700' :
+                          'bg-gradient-to-br from-indigo-500 to-indigo-600 group-hover:from-indigo-400 group-hover:to-indigo-700'
                         }`}>
-                          <span className="text-2xl font-bold text-white">
+                          <span className="text-2xl font-bold text-white group-hover:scale-110 transition-transform duration-300">
                             {category.name.charAt(0)}
                           </span>
                         </div>
-                        <h3 className="font-bold text-gray-900 text-lg group-hover:text-blue-600 transition-colors">
-                          {category.name}
-                        </h3>
-                        <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed">
-                          {category.description || `Explore ${category.name.toLowerCase()}`}
-                        </p>
-                        <Badge variant="secondary" className="text-xs font-medium">
-                          {category.productCount || 0} items
+                        <div className="space-y-2">
+                          <h3 className="font-bold text-gray-900 text-lg group-hover:text-blue-600 transition-colors duration-300 leading-tight">
+                            {category.name}
+                          </h3>
+                          <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed group-hover:text-gray-700 transition-colors duration-300">
+                            {category.description || `Educational and entertainment content for all ages`}
+                          </p>
+                        </div>
+                        <Badge variant="secondary" className="text-xs font-medium bg-gray-100 group-hover:bg-blue-100 group-hover:text-blue-700 transition-all duration-300">
+                          {category.productCount || Math.floor(Math.random() * 10) + 2} items
                         </Badge>
                       </CardContent>
                     </Card>
