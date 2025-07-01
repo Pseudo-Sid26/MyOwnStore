@@ -30,6 +30,32 @@ export function formatDateTime(date) {
   }).format(new Date(date))
 }
 
+// Safe sorting utility to prevent localeCompare errors
+export function safeSortProducts(products, sortBy) {
+  if (!products || !Array.isArray(products)) return []
+  
+  const sorted = [...products].sort((a, b) => {
+    switch (sortBy) {
+      case 'title':
+        return (a.title || '').localeCompare(b.title || '')
+      case 'price':
+        return (a.discountedPrice || a.price || 0) - (b.discountedPrice || b.price || 0)
+      case '-price':
+        return (b.discountedPrice || b.price || 0) - (a.discountedPrice || a.price || 0)
+      case '-rating':
+        return (b.rating || 0) - (a.rating || 0)
+      case '-createdAt':
+        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+      case 'createdAt':
+        return new Date(a.createdAt || 0) - new Date(b.createdAt || 0)
+      default:
+        return (a.title || '').localeCompare(b.title || '')
+    }
+  })
+  
+  return sorted
+}
+
 export function slugify(text) {
   return text
     .toString()
